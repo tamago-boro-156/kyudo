@@ -1,0 +1,1538 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="一射ずつ丁寧に。射法八節をたどり、28m先の的を実寸で狙う弓道ゲーム。稽古のほか、AI相手の射詰競射・遠近競射も遊べる。">
+<meta property="og:title" content="一射入魂 ― 一射ずつ丁寧に">
+<meta property="og:description" content="射法八節をたどり、28m先の的を実寸で狙う弓道ゲーム。">
+<meta property="og:url" content="https://tamago-boro-156.github.io/kyudo/">
+<meta property="og:image" content="https://tamago-boro-156.github.io/kyudo/docs/pc-yoko.png">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font-size:14px}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>一射入魂</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
+<style>
+/* Layout: full-screen canvas. Third-person (spectator) view for 足踏み〜大三, first-person true-scale view for 引分け〜会, close-up on the mato after the shot. HUD on dark-wood cards at the bottom. Single committed look (morning dojo). */
+:root {
+  --wood: #2a1d14;
+  --paper: #f3eee2;
+  --ink: #1b1612;
+  --sumi: #4a4038;
+  --shu: #b8432f;
+  --gold: #c9a45c;
+  --dim: rgba(243,238,226,.55);
+  --display: "Shippori Mincho", "Hiragino Mincho ProN", "Yu Mincho", serif;
+  --ui: "Zen Kaku Gothic New", "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+[hidden] { display: none !important; }
+body { background: var(--wood); color: var(--paper); font-family: var(--ui); overflow: hidden; user-select: none; -webkit-user-select: none; touch-action: none; }
+#game { position: fixed; inset: 0; display: block; width: 100%; height: 100%; }
+
+.hassetsu {
+  position: fixed; top: calc(env(safe-area-inset-top, 0px) + 14px); left: max(16px, env(safe-area-inset-left, 0px));
+  width: 260px; display: grid; gap: 8px; pointer-events: none;
+}
+.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.step {
+  display: grid; grid-template-columns: 24px 1fr; align-items: center; padding: 5px 12px;
+  background: rgba(27,22,18,.62); color: var(--dim);
+  font-family: var(--display); font-weight: 700; font-size: 17px; letter-spacing: .12em;
+  transition: background .4s, color .4s;
+}
+.step .n { font-size: 12px; color: var(--gold); letter-spacing: 0; }
+.step.done { color: var(--paper); }
+.step.on { background: var(--paper); color: var(--ink); font-size: 21px; padding-block: 8px; }
+.step.on .n { color: var(--shu); }
+.stepcard { background: rgba(27,22,18,.84); border: 1px solid rgba(201,164,92,.45); padding: 12px 14px 13px; display: grid; gap: 5px; }
+.sc-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.sc-name { font-family: var(--display); font-weight: 800; font-size: 30px; letter-spacing: .14em; line-height: 1.1; }
+.sc-read { font-size: 12px; color: var(--gold); letter-spacing: .22em; }
+.sc-sub { font-family: var(--display); font-weight: 700; font-size: 17px; color: #f3c2b2; letter-spacing: .1em; }
+.sc-sub:empty { display: none; }
+.sc-text { margin: 0; font-size: 13px; line-height: 1.75; color: rgba(243,238,226,.9); text-wrap: pretty; }
+@media (max-width: 700px) {
+  .hassetsu { left: 0; right: 0; width: auto; top: calc(env(safe-area-inset-top, 0px) + 8px); gap: 6px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  .steps { grid-template-columns: repeat(8, 1fr); }
+  .step { grid-template-columns: 1fr; text-align: center; padding: 5px 0; font-size: 11px; letter-spacing: 0; }
+  .step .n { display: none; }
+  .step.on { font-size: 12px; padding-block: 5px; }
+  .sc-name { font-size: 22px; }
+  .sc-text { font-size: 12px; line-height: 1.65; }
+  .stepcard { padding: 9px 12px; }
+  .callout { top: 27%; }
+}
+.hud {
+  position: fixed; left: 0; right: 0; bottom: 0;
+  display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+  padding: 10px max(16px, env(safe-area-inset-right, 0px)) calc(12px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+  pointer-events: none;
+}
+.hud-group { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+.card { background: rgba(27,22,18,.8); border: 1px solid rgba(201,164,92,.35); padding: 8px 12px; display: grid; gap: 4px; }
+.label { font-size: 11px; letter-spacing: .14em; color: var(--gold); }
+.marks { display: flex; gap: 10px; font-family: var(--display); font-size: 24px; line-height: 1; }
+.marks .m { width: 26px; text-align: center; color: var(--dim); }
+.marks .m.hit { color: var(--paper); }
+.marks .m.miss { color: var(--shu); }
+.marks .m.next { color: var(--gold); }
+.yaname { display: flex; gap: 10px; font-size: 10px; color: var(--dim); }
+.yaname span { width: 26px; text-align: center; }
+.stats { font-variant-numeric: tabular-nums; font-size: 13px; display: grid; grid-template-columns: auto auto; gap: 2px 12px; }
+.stats b { font-weight: 700; text-align: right; }
+.settings { pointer-events: auto; }
+.seg { display: flex; }
+.seg button {
+  font-family: var(--ui); font-size: 12px; font-weight: 500; color: var(--dim); background: transparent;
+  border: 1px solid rgba(201,164,92,.45); padding: 5px 10px; cursor: pointer;
+}
+.seg button + button { border-left: 0; }
+.seg button[aria-pressed="true"] { background: var(--paper); color: var(--ink); }
+.seg button:focus-visible, .btn:focus-visible, .choice:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+.seg button:disabled { opacity: .45; cursor: not-allowed; }
+
+.callout {
+  position: fixed; left: 50%; top: 15%; transform: translateX(-50%);
+  font-family: var(--display); font-weight: 800; font-size: clamp(28px, 6vw, 54px);
+  color: var(--paper); text-shadow: 0 2px 14px rgba(0,0,0,.7); letter-spacing: .15em;
+  pointer-events: none; opacity: 0; transition: opacity .25s; white-space: nowrap; text-align: center;
+}
+.callout small { display: block; font-family: var(--ui); font-size: 15px; font-weight: 500; letter-spacing: .05em; margin-top: 6px; }
+.callout.show { opacity: 1; }
+.callout.miss { color: #f3c2b2; }
+
+.overlay {
+  position: fixed; inset: 0; display: grid; place-items: center; overflow-y: auto;
+  background: rgba(20,14,10,.62);
+  padding: 16px max(16px, env(safe-area-inset-right, 0px)) 16px max(16px, env(safe-area-inset-left, 0px));
+}
+.panel {
+  background: var(--paper); color: var(--ink); max-width: 500px; width: 100%;
+  padding: 26px 26px 22px; display: grid; gap: 13px; position: relative;
+  box-shadow: 0 20px 60px rgba(0,0,0,.5);
+}
+.panel h1, .panel h2 { margin: 0; font-family: var(--display); font-weight: 800; letter-spacing: .12em; text-wrap: balance; }
+.panel h1 { font-size: 32px; }
+.panel h2 { font-size: 28px; }
+.panel p { margin: 0; line-height: 1.75; font-size: 14px; color: var(--sumi); }
+.panel ol { margin: 0; padding-left: 1.3em; line-height: 1.75; font-size: 14px; color: var(--sumi); }
+.panel kbd { font-family: var(--ui); font-size: 12px; border: 1px solid var(--sumi); padding: 0 5px; }
+.seal {
+  position: absolute; top: 20px; right: 20px; width: 54px; height: 54px; border: 2px solid var(--shu); color: var(--shu);
+  font-family: var(--display); font-weight: 800; font-size: 15px; line-height: 1.1; display: grid; place-items: center; text-align: center; transform: rotate(4deg);
+}
+.choices { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.choice {
+  display: grid; grid-template-columns: 44px 1fr; gap: 10px; align-items: center; text-align: left;
+  border: 1px solid #b9ad97; background: transparent; padding: 10px; cursor: pointer; font-family: var(--ui); color: var(--ink);
+}
+.choice[aria-pressed="true"] { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); background: #e9e2d2; }
+.choice b { font-family: var(--display); font-size: 17px; display: block; }
+.choice small { font-size: 11px; color: var(--sumi); }
+.choice canvas { width: 44px; height: 44px; }
+.btn {
+  justify-self: start; font-family: var(--display); font-weight: 700; font-size: 17px; letter-spacing: .2em;
+  background: var(--ink); color: var(--paper); border: 0; padding: 12px 26px; cursor: pointer;
+}
+.btn:hover { background: var(--shu); }
+.result-marks { font-family: var(--display); font-size: 44px; letter-spacing: .3em; }
+.result-marks .miss { color: var(--shu); }
+.sub { font-size: 12px; color: var(--sumi); font-variant-numeric: tabular-nums; line-height: 1.6; }
+.field { display: grid; gap: 6px; }
+.flabel { font-size: 12px; font-weight: 700; letter-spacing: .14em; color: var(--sumi); }
+.frow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.frow .flabel { min-width: 6.5em; }
+.modes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.choice.mode { grid-template-columns: 1fr; align-items: start; }
+.pseg { display: flex; flex-wrap: wrap; }
+.pseg button { font-family: var(--ui); font-size: 13px; color: var(--ink); background: transparent; border: 1px solid #b9ad97; padding: 6px 12px; cursor: pointer; }
+.pseg button + button { border-left: 0; }
+.pseg button[aria-pressed="true"] { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.pseg button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+.panel details summary { cursor: pointer; font-size: 13px; font-weight: 700; color: var(--sumi); }
+.panel details[open] summary { margin-bottom: 8px; }
+.panel details .sub { margin-top: 8px; }
+.btnrow { display: flex; gap: 10px; flex-wrap: wrap; }
+.btn.ghost { background: transparent; color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+.btn.ghost:hover { background: #e9e2d2; }
+.rtable { width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
+.rtable, .rtable td, .rtable th { color: var(--ink); font-family: var(--ui); }
+.rtable .mk { font-family: var(--display); }
+.rtable th, .rtable td { text-align: left; padding: 6px 6px; border-bottom: 1px solid #d8cfbd; vertical-align: middle; }
+.rtable th { font-size: 11px; letter-spacing: .12em; color: var(--sumi); font-weight: 700; }
+.rtable .me td { font-weight: 700; background: #e9e2d2; }
+.rtable .rank { font-family: var(--display); font-weight: 800; font-size: 18px; width: 3em; }
+.rtable .mk { font-family: var(--display); letter-spacing: .12em; }
+.rtable .mk .x, .rtable .out { color: var(--shu); }
+.board { display: grid; gap: 1px; font-size: 12px; min-width: 230px; }
+.brow { display: grid; grid-template-columns: 3.2em 4.6em 1fr; gap: 6px; align-items: center; padding: 3px 6px; }
+.brow.cur { background: rgba(243,238,226,.16); }
+.brow.cur .bname::before { content: "▶ "; color: var(--gold); }
+.brow.out { opacity: .45; }
+.bpos { color: var(--gold); font-size: 11px; }
+.bname { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bmarks { font-family: var(--display); font-size: 14px; letter-spacing: .08em; white-space: nowrap; overflow: hidden; }
+.bmarks .x { color: var(--shu); }
+@media (max-width: 560px) { .modes { grid-template-columns: 1fr; } .board { min-width: 0; } .brow { grid-template-columns: 2.8em 5.2em 1fr; } }
+@media (max-width: 560px) {
+  .stats-card { display: none; } .marks { font-size: 18px; gap: 6px; } .marks .m, .yaname span { width: 22px; } .yaname { gap: 6px; }
+  .hud { gap: 6px; } .hud-group { gap: 6px; flex-wrap: nowrap; } .card { padding: 6px 9px; }
+  .settings { grid-template-columns: auto auto auto auto; align-items: center; gap: 6px; }
+  .seg button { padding: 4px 8px; }
+  .panel { padding: 22px 18px 18px; } .choices { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) { .callout, .hassetsu span { transition: none; } }
+</style>
+
+</head>
+<body>
+<canvas id="game" aria-label="弓道場。的まで二十八メートル"></canvas>
+
+<div class="hassetsu" id="hassetsu">
+  <ol class="steps" aria-label="射法八節">
+    <li class="step"><span class="n">一</span><span>足踏み</span></li>
+    <li class="step"><span class="n">二</span><span>胴造り</span></li>
+    <li class="step"><span class="n">三</span><span>弓構え</span></li>
+    <li class="step"><span class="n">四</span><span>打起し</span></li>
+    <li class="step"><span class="n">五</span><span>引分け</span></li>
+    <li class="step"><span class="n">六</span><span>会</span></li>
+    <li class="step"><span class="n">七</span><span>離れ</span></li>
+    <li class="step"><span class="n">八</span><span>残心</span></li>
+  </ol>
+  <div class="stepcard" id="stepcard" hidden aria-live="polite">
+    <div class="sc-head"><span class="sc-name" id="scName"></span><span class="sc-read" id="scRead"></span></div>
+    <div class="sc-sub" id="scSub"></div>
+    <p class="sc-text" id="scText"></p>
+  </div>
+</div>
+
+<div class="callout" id="callout"></div>
+
+<div class="hud">
+  <div class="hud-group">
+    <div class="card" id="boardCard" hidden>
+      <div class="label" id="boardLabel">射詰競射</div>
+      <div class="board" id="board"></div>
+    </div>
+    <div class="card" id="marksCard">
+      <div class="label">この立ち</div>
+      <div class="marks" id="marks"></div>
+      <div class="yaname"><span>甲矢</span><span>乙矢</span><span>甲矢</span><span>乙矢</span></div>
+    </div>
+  </div>
+  <div class="hud-group">
+    <div class="card settings">
+      <div class="label">的</div>
+      <div class="seg" id="matoSeg"><button id="hudKasumi" type="button">霞的</button><button id="hudHoshi" type="button">星的</button></div>
+      <div class="label">動作</div>
+      <div class="seg"><button id="speedSlow" type="button">丁寧</button><button id="speedFast" type="button">早送り</button></div>
+      <div class="label">見込みの目安</div>
+      <div class="seg"><button id="guideOff" type="button">なし</button><button id="guideOn" type="button">表示</button></div>
+    </div>
+    <div class="card stats-card">
+      <div class="label">通算</div>
+      <div class="stats">
+        <span>射数</span><b id="sTotal">0</b>
+        <span>的中</span><b id="sHits">0</b>
+        <span>的中率</span><b id="sRate">—</b>
+        <span>皆中</span><b id="sKai">0</b>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="intro">
+  <div class="panel">
+    <div class="sub" style="letter-spacing:.3em">いっしゃにゅうこん</div>
+    <h1>一射入魂</h1>
+    <p style="font-family:var(--display);font-weight:700;font-size:17px;color:var(--ink);letter-spacing:.12em">一射ずつ丁寧に</p>
+    <p>近的、二十八メートル。直径三十六センチの的を射ます。</p>
+    <div class="field">
+      <div class="flabel">種目</div>
+      <div class="modes">
+        <button class="choice mode" id="modePractice" type="button"><span><b>稽古</b><small>一立ち四射。自分のペースで射る</small></span></button>
+        <button class="choice mode" id="modeIzume" type="button"><span><b>射詰競射</b><small>一本ずつ射て、外した者から抜ける。最後の一人が優勝</small></span></button>
+        <button class="choice mode" id="modeEnkin" type="button"><span><b>遠近競射</b><small>一本ずつ射て、的の中心に近い順に順位が決まる</small></span></button>
+      </div>
+    </div>
+    <div class="field" id="compFields">
+      <div class="frow"><div class="flabel">相手（AI）</div>
+        <div class="pseg" id="oppSeg"><button type="button" data-v="1">1人</button><button type="button" data-v="2">2人</button><button type="button" data-v="3">3人</button><button type="button" data-v="4">4人</button></div></div>
+      <div class="frow"><div class="flabel">相手の強さ</div>
+        <div class="pseg" id="lvSeg"><button type="button" data-v="easy">易しい</button><button type="button" data-v="normal">普通</button><button type="button" data-v="strong">強い</button><button type="button" data-v="oni">鬼</button></div></div>
+      <p class="sub">射順は入場のときにくじで決まります。</p>
+    </div>
+    <div class="field">
+      <div class="frow"><div class="flabel">あなたの射手</div>
+        <div class="pseg" id="genderSeg"><button type="button" data-v="m">男子</button><button type="button" data-v="f">女子（胸当て）</button></div></div>
+    </div>
+    <div class="field">
+      <div class="flabel">的</div>
+      <div class="choices">
+        <button class="choice" id="pickKasumi" type="button"><canvas width="88" height="88" data-mato="kasumi"></canvas><span><b>霞的</b><small>中白・一の黒・二の白・二の黒・三の白・三の黒</small></span></button>
+        <button class="choice" id="pickHoshi" type="button"><canvas width="88" height="88" data-mato="hoshi"></canvas><span><b>星的</b><small>白地の中央に直径12cmの星</small></span></button>
+      </div>
+    </div>
+    <div class="field">
+      <div class="flabel">動作の速さ</div>
+      <div class="choices">
+        <button class="choice mode" id="pickSlow" type="button"><span><b>丁寧</b><small>射法八節を一つずつ味わう</small></span></button>
+        <button class="choice mode" id="pickFast" type="button"><span><b>早送り</b><small>弓構え〜大三を三倍速に。引分けからは通常の速さ</small></span></button>
+      </div>
+    </div>
+    <details>
+      <summary>遊び方</summary>
+      <ol>
+        <li>足踏み・胴造り・弓構えは、射手が順に整えていきます。画面左の射法八節で、いまの動作と意味を確かめてください。</li>
+        <li>弓構えが整ったら、押し続けて打起し、大三へ（横からの視点）。</li>
+        <li>引分けに入ると射手の目線に切り替わります。的は実寸どおりに小さく見えます。</li>
+        <li>会では、弓の右の縁が的の中央にかかる「半月」の見込みを目指します。押したままドラッグ（<kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd>）で狙いを直します。</li>
+        <li>離すと離れです。会が短すぎると早気、長すぎるともたれで狙いが乱れます。</li>
+      </ol>
+      <p class="sub">射法八節の説明は、全日本弓道連盟『弓道教本 第一巻 射法篇』の要旨を短く言い換えたものです。細かな解釈は指導者や道場の教えに従ってください。</p>
+      <p class="sub" id="scaleNote"></p>
+    </details>
+    <button class="btn" id="startBtn">入場</button>
+  </div>
+</div>
+
+<div class="overlay" id="result" hidden>
+  <div class="panel">
+    <div class="seal" id="resSeal">記録</div>
+    <h2 id="resTitle">三中</h2>
+    <div class="result-marks" id="resMarks"></div>
+    <p class="sub" id="resSub"></p>
+    <div class="btnrow"><button class="btn" id="nextBtn">次の立ち</button><button class="btn ghost setupBtn" type="button">種目を選ぶ</button></div>
+  </div>
+</div>
+
+<div class="overlay" id="orderPanel" hidden>
+  <div class="panel">
+    <div class="seal">射順</div>
+    <h2 id="orderTitle">射詰競射</h2>
+    <p id="orderSub"></p>
+    <table class="rtable" id="orderTable"></table>
+    <button class="btn" id="orderBtn">始め</button>
+  </div>
+</div>
+
+<div class="overlay" id="roundPanel" hidden>
+  <div class="panel">
+    <div class="seal" id="roundSeal">一射</div>
+    <h2 id="roundTitle"></h2>
+    <p id="roundMsg"></p>
+    <table class="rtable" id="roundTable"></table>
+    <button class="btn" id="roundBtn">次の射へ</button>
+  </div>
+</div>
+
+<div class="overlay" id="matchPanel" hidden>
+  <div class="panel">
+    <div class="seal" id="matchSeal">優勝</div>
+    <h2 id="matchTitle"></h2>
+    <p class="sub" id="matchSub"></p>
+    <table class="rtable" id="matchTable"></table>
+    <div class="btnrow"><button class="btn" id="againBtn">もう一度</button><button class="btn ghost setupBtn" type="button">種目を選ぶ</button></div>
+  </div>
+</div>
+
+<script>
+(() => {
+  // ================= constants (metres) =================
+  const DIST = 28;          // 射距離
+  const MATO_R = 0.18;      // 的の半径 (尺二, 36cm)
+  const MATO_Y = 0.27;      // 的の中心の高さ（安土敷から）
+  const EYE = 1.55;         // 射手の目の高さ
+  const FOV = 50 * Math.PI / 180; // 画面の長辺に対する画角
+  // 霞的 (弓道競技規則 第26条): 中白 r3.6 / 一の黒 3.6 / 二の白 3.0 / 二の黒 1.5 / 三の白 3.0 / 三の黒 3.3 (cm)
+  const KASUMI = [
+    { r: 0.036, c: 'w', name: '中白' },
+    { r: 0.072, c: 'b', name: '一の黒' },
+    { r: 0.102, c: 'w', name: '二の白' },
+    { r: 0.117, c: 'b', name: '二の黒' },
+    { r: 0.147, c: 'w', name: '三の白' },
+    { r: 0.180, c: 'b', name: '三の黒' }
+  ];
+  const HOSHI = [ { r: 0.06, c: 'b', name: '星' }, { r: 0.18, c: 'w', name: '白' } ];
+  const WHITE = '#f4f1ea', BLACK = '#161412';
+  const KANJI_NUM = ['零','一','二','三','四'];
+  const YA = ['甲矢','乙矢','甲矢','乙矢'];
+
+  const cv = document.getElementById('game');
+  const ctx = cv.getContext('2d');
+  const $ = id => document.getElementById(id);
+  const steps = [...document.querySelectorAll('#hassetsu .step')];
+  // 全日本弓道連盟『弓道教本 第一巻 射法篇』の射法八節の要旨を、ゲーム用に短く言い換えたもの
+  const STEP_INFO = [
+    ['足踏み', 'あしぶみ', '射位で的の中心と両足の先が一直線になるよう、矢束を目安に外八文字（約六十度）に踏み開く。射全体の土台となる。'],
+    ['胴造り', 'どうづくり', '足踏みを基礎に、上体を両脚の上に正しく据える。背筋と項を伸ばし、重心を腰の中央に置いて呼吸を整える。弓は本弭を左膝頭に置く。'],
+    ['弓構え', 'ゆがまえ', '取懸け・手の内・物見の三つを整える。両腕は大木を抱くように丸く構え、肩の力を抜く。'],
+    ['打起し', 'うちおこし', '弓構えの形を保ったまま、両拳を同じ高さで静かに打ち起こす。高さは額よりやや上、約四十五度。気持ちは丹田に置き、胸や肩に力を入れない。'],
+    ['引分け', 'ひきわけ', '打起した弓を左右均等に引き分ける。正面打起しでは途中で大三をとる（押大目引三分一）。弓手と馬手の高さをそろえ、矢は水平のまま会に至る。'],
+    ['会', 'かい', '引分けが完成した状態。形は静止していても内では伸合いを続け、離れの機が熟すのを待つ。'],
+    ['離れ', 'はなれ', '会で気力が充実しきったとき、矢が自然に離れる。自分から放そうとするものではない。'],
+    ['残心（残身）', 'ざんしん', '離れの後の姿勢を崩さずに保ち、矢所を見定める。胴造りが崩れず大の字の形であることが望ましい。そのあと弓倒し。']
+  ];
+  const FONT = '"Zen Kaku Gothic New", "Hiragino Sans", system-ui, sans-serif';
+  const DFONT = '"Shippori Mincho", "Hiragino Mincho ProN", serif';
+
+  let W = 0, H = 0, DPR = 1, F = 1, ZOOM = 1;
+  let MR = MATO_R, MTYPE = 'kasumi';   // the mato currently hung (八寸的 in later 射詰 rounds)
+  let C = null;                         // competition state, null in 稽古
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = cv.clientWidth; H = cv.clientHeight;
+    cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+    F = Math.max(W, H) / (2 * Math.tan(FOV / 2));
+    const px = F * (2 * MATO_R) / DIST;
+    $('scaleNote').textContent = '画面の長辺を画角50°として実寸で投影しています。この画面では的の直径は約' + px.toFixed(0) + 'px、28m先の36cmは見かけ0.74°です。';
+  }
+  let TPL = null;
+  addEventListener('resize', () => { resize(); TPL = null; });
+  resize();
+
+  // ================= persistence =================
+  let stats = { total: 0, hits: 0, kaichu: 0 };
+  let prefs = { mato: 'kasumi', guide: false, fast: false, mode: 'practice', opp: 2, level: 'normal', gender: 'm' };
+  try { const s = JSON.parse(localStorage.getItem('kyudo-stats') || 'null'); if (s) stats = Object.assign(stats, s); } catch (e) {}
+  try { const p = JSON.parse(localStorage.getItem('kyudo-prefs') || 'null'); if (p) prefs = Object.assign(prefs, p); } catch (e) {}
+  const save = () => { try { localStorage.setItem('kyudo-stats', JSON.stringify(stats)); localStorage.setItem('kyudo-prefs', JSON.stringify(prefs)); } catch (e) {} };
+
+  // ================= state =================
+  const S = {
+    phase: 'intro', t: 0, pt: 0,
+    shot: 0, results: [], stuck: [],
+    hold: false,
+    prog: 0,             // progress within current held phase
+    draw: 0, kaiT: 0,
+    aimX: 0, aimY: 0,    // aim error at the target plane (m), +x right, +y up
+    ph: [0,0,0,0,0,0],
+    shotData: null,
+    frozen: null,        // aim at release
+    fade: 0,
+    keys: {}, ptr: null,
+    poseFrom: null, poseTo: null, poseDur: 1,
+    tapToSkip: false,
+    focusTx: 0, myTx: 0,
+    actor: null          // who is on the 射位 in third-person view
+  };
+
+  // ================= audio =================
+  let ac = null;
+  function audio() { if (!ac) { try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} } if (ac && ac.state === 'suspended') ac.resume(); return ac; }
+  function noiseBuf(d) { const b = ac.createBuffer(1, Math.floor(ac.sampleRate * d), ac.sampleRate); const c = b.getChannelData(0); for (let i = 0; i < c.length; i++) c[i] = Math.random() * 2 - 1; return b; }
+  function tsurune() {
+    if (!audio()) return; const t = ac.currentTime;
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = 'triangle'; o.frequency.setValueAtTime(330, t); o.frequency.exponentialRampToValueAtTime(140, t + 0.35);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.5, t + 0.005); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
+    o.connect(g).connect(ac.destination); o.start(t); o.stop(t + 0.55);
+    const n = ac.createBufferSource(), f = ac.createBiquadFilter(), ng = ac.createGain();
+    n.buffer = noiseBuf(0.12); f.type = 'highpass'; f.frequency.value = 2500;
+    ng.gain.setValueAtTime(0.25, t); ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.1);
+    n.connect(f).connect(ng).connect(ac.destination); n.start(t);
+  }
+  function impact(hit) {
+    if (!audio()) return; const t = ac.currentTime;
+    const n = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
+    n.buffer = noiseBuf(0.25); f.type = 'bandpass'; f.frequency.value = hit ? 1400 : 350; f.Q.value = hit ? 1.2 : 0.7;
+    g.gain.setValueAtTime(hit ? 0.9 : 0.5, t); g.gain.exponentialRampToValueAtTime(0.0001, t + (hit ? 0.09 : 0.2));
+    n.connect(f).connect(g).connect(ac.destination); n.start(t);
+  }
+
+  // ================= HUD =================
+  let stepKey = '';
+  function setStep(i, sub) {
+    const key = i + '|' + (sub || '');
+    if (key === stepKey) return; stepKey = key;
+    steps.forEach((s, k) => { s.classList.toggle('on', k === i); s.classList.toggle('done', k < i); });
+    const card = $('stepcard');
+    if (i < 0) { card.hidden = true; return; }
+    card.hidden = false;
+    $('scName').textContent = STEP_INFO[i][0];
+    $('scRead').textContent = STEP_INFO[i][1];
+    $('scSub').textContent = sub || '';
+    $('scText').textContent = STEP_INFO[i][2];
+  }
+  function renderMarks() {
+    const m = $('marks'); m.innerHTML = '';
+    for (let i = 0; i < 4; i++) {
+      const s = document.createElement('span'); s.className = 'm';
+      if (i < S.results.length) { s.textContent = S.results[i] ? '○' : '×'; s.classList.add(S.results[i] ? 'hit' : 'miss'); }
+      else { s.textContent = '・'; if (i === S.shot && S.phase !== 'result') s.classList.add('next'); }
+      m.appendChild(s);
+    }
+  }
+  function renderStats() {
+    $('sTotal').textContent = stats.total; $('sHits').textContent = stats.hits;
+    $('sRate').textContent = stats.total ? Math.round(stats.hits / stats.total * 100) + '%' : '—';
+    $('sKai').textContent = stats.kaichu;
+  }
+  function renderPrefs() {
+    const k = prefs.mato === 'kasumi';
+    $('pickKasumi').setAttribute('aria-pressed', k); $('pickHoshi').setAttribute('aria-pressed', !k);
+    $('hudKasumi').setAttribute('aria-pressed', k); $('hudHoshi').setAttribute('aria-pressed', !k);
+    $('pickFast').setAttribute('aria-pressed', prefs.fast); $('pickSlow').setAttribute('aria-pressed', !prefs.fast);
+    $('speedFast').setAttribute('aria-pressed', prefs.fast); $('speedSlow').setAttribute('aria-pressed', !prefs.fast);
+    $('guideOn').setAttribute('aria-pressed', prefs.guide); $('guideOff').setAttribute('aria-pressed', !prefs.guide);
+    $('modePractice').setAttribute('aria-pressed', prefs.mode === 'practice');
+    $('modeIzume').setAttribute('aria-pressed', prefs.mode === 'izume');
+    $('modeEnkin').setAttribute('aria-pressed', prefs.mode === 'enkin');
+    $('compFields').hidden = prefs.mode === 'practice';
+    document.querySelectorAll('#oppSeg button').forEach(b => b.setAttribute('aria-pressed', +b.dataset.v === prefs.opp));
+    document.querySelectorAll('#lvSeg button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === prefs.level));
+    document.querySelectorAll('#genderSeg button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === prefs.gender));
+    // the mato can only be changed between 立ち
+    const lock = !!C || (S.phase !== 'intro' && S.phase !== 'result' && S.results.length > 0);
+    $('hudKasumi').disabled = lock; $('hudHoshi').disabled = lock;
+  }
+  let calloutTimer = 0;
+  function callout(text, sub, cls, ms) {
+    const c = $('callout'); c.className = 'callout show ' + (cls || '');
+    c.innerHTML = text + (sub ? '<small>' + sub + '</small>' : '');
+    clearTimeout(calloutTimer); calloutTimer = setTimeout(() => c.classList.remove('show'), ms || 1500);
+  }
+  function hideCallout() { clearTimeout(calloutTimer); $('callout').classList.remove('show'); }
+
+  // ================= third-person poses (front view, metres, x+ = toward target) =================
+  const FA = { fL: 0.42, fR: -0.42 }, FT = { fL: 0.10, fR: -0.10 };
+  const P = {
+    shitsu:   { L:[0.30,0.97], Le:[0.28,1.20], R:[-0.30,0.97], Re:[-0.28,1.20], ang: 0.30, nock:0, flip:0, head:0, ...FT },
+    look:     { L:[0.30,0.97], Le:[0.28,1.20], R:[-0.30,0.97], Re:[-0.28,1.20], ang: 0.30, nock:0, flip:0, head:1, ...FT },
+    ashi1:    { L:[0.30,0.97], Le:[0.28,1.20], R:[-0.30,0.97], Re:[-0.28,1.20], ang: 0.30, nock:0, flip:0, head:1, fL: 0.42, fR: -0.10 },
+    ashi2:    { L:[0.30,0.97], Le:[0.28,1.20], R:[-0.30,0.97], Re:[-0.28,1.20], ang: 0.30, nock:0, flip:0, head:1, ...FA },
+    dozu:     { L:[0.29,0.95], Le:[0.28,1.19], R:[-0.29,0.97], Re:[-0.28,1.20], ang: 0.10, nock:0, flip:0, head:0, ...FA },
+    torikake: { L:[0.28,1.00], Le:[0.36,1.19], R:[0.11,1.00], Re:[-0.26,1.16], ang: 0.0, nock:1, flip:0, head:0, ...FA },
+    tenouchi: { L:[0.25,1.12], Le:[0.42,1.26], R:[0.09,1.12], Re:[-0.30,1.22], ang: 0.0, nock:1, flip:0, head:0, ...FA },
+    kamae:    { L:[0.25,1.12], Le:[0.42,1.26], R:[0.09,1.12], Re:[-0.30,1.22], ang: 0.0, nock:1, flip:0, head:1, ...FA },
+    uchi:     { L:[0.32,1.95], Le:[0.46,1.70], R:[0.15,1.95], Re:[-0.26,1.72], ang: 0.0, nock:1, flip:0, head:1, ...FA },
+    daisan:   { L:[0.66,1.92], Le:[0.46,1.73], R:[0.02,1.92], Re:[-0.31,1.80], ang: 0.0, nock:1, flip:0, head:1, ...FA },
+    kai:      { L:[0.84,1.52], Le:[0.53,1.50], R:[-0.22,1.53], Re:[-0.54,1.41], ang: 0.0, nock:1, flip:0, head:1, ...FA },
+    zanshin:  { L:[0.86,1.48], Le:[0.53,1.46], R:[-0.80,1.46], Re:[-0.49,1.45], ang: 0.0, nock:0, flip:1, head:1, ...FA },
+    taoshi:   { L:[0.30,0.97], Le:[0.28,1.20], R:[-0.30,0.97], Re:[-0.28,1.20], ang: 0.30, nock:0, flip:0, head:0, ...FA }
+  };
+  // 一本目は足踏みから。二本目以降は足を踏んだまま胴造りから。
+  const PREP_REST = [
+    { st: 1, sub: '顔を正面に戻し、腰を据えて本弭を左膝頭へ', d: 1.6, a: 'ashi2', b: 'dozu' },
+    { st: 2, sub: '取懸け', d: 1.3, a: 'dozu', b: 'torikake' },
+    { st: 2, sub: '手の内', d: 1.2, a: 'torikake', b: 'tenouchi' },
+    { st: 2, sub: '物見', d: 1.2, a: 'tenouchi', b: 'kamae' }
+  ];
+  const SEQ_FIRST = [
+    { st: 0, sub: '物見をして的を見定める', d: 1.0, a: 'shitsu', b: 'look' },
+    { st: 0, sub: '左足を踏み開く', d: 1.2, a: 'look', b: 'ashi1' },
+    { st: 0, sub: '右足を踏み開く', d: 1.2, a: 'ashi1', b: 'ashi2' },
+    ...PREP_REST
+  ];
+  const SEQ_NEXT = [{ st: 1, sub: '息を整える', d: 0.6, a: 'taoshi', b: 'taoshi' }, { ...PREP_REST[0], a: 'taoshi', sub: '腰を据えて本弭を左膝頭へ' }, ...PREP_REST.slice(1)];
+  let pose = P.shitsu;
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const ease = t => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+  function mix(a, b, t) {
+    const o = {};
+    for (const k in a) o[k] = Array.isArray(a[k]) ? [lerp(a[k][0], b[k][0], t), lerp(a[k][1], b[k][1], t)] : (k === 'nock' || k === 'flip') ? (t < 0.5 ? a[k] : b[k]) : lerp(a[k], b[k], t);
+    return o;
+  }
+
+  // ================= flow =================
+  function go(phase) { S.phase = phase; S.pt = 0; S.prog = 0; renderPrefs(); }
+  function startTachi() {
+    C = null; MR = MATO_R; MTYPE = prefs.mato; S.myTx = 0; S.actor = null;
+    if (!S.look) S.look = { hakama: '#1f2230', dogi: randDogi(), fe: randFeather(), kake: randKake(), gender: prefs.gender, muneate: randMuneate() };
+    TPL = null;
+    $('boardCard').hidden = true; $('marksCard').hidden = false;
+    S.shot = 0; S.results = []; S.stuck = [];
+    $('result').hidden = true; renderMarks(); prepShot(true);
+  }
+  function prepShot(first) {
+    S.draw = 0; S.kaiT = 0; S.shotData = null; S.frozen = null;
+    S.aimX = (Math.random() < 0.5 ? -1 : 1) * (0.08 + Math.random() * 0.32);
+    S.aimY = (Math.random() * 2 - 1) * 0.28;
+    S.ph = S.ph.map(() => Math.random() * 6.28);
+    S.seq = first ? SEQ_FIRST : SEQ_NEXT;
+    pose = P[S.seq[0].a];
+    go('tp-prep');
+    renderMarks();
+  }
+  function press() {
+    audio();
+    if (S.phase === 'closeup' && S.pt > 0.8) { go('tp-zanshin'); hideCallout(); return; }
+    if (S.phase === 'ai-closeup' && S.pt > 0.8) { hideCallout(); C.turn++; nextTurn(); return; }
+    if (S.phase === 'tp-ready') { S.hold = true; go('tp-uchi'); }
+  }
+  function releaseInput() {
+    if (!S.hold) return; S.hold = false;
+    if (S.phase === 'tp-uchi' || S.phase === 'tp-daisan') {
+      S.poseFrom = pose; go('tp-back'); callout('やり直し', '大三までに離したので弓構えに戻ります', 'miss', 1300);
+    } else if (S.phase === 'fp-hiki') loose(true);
+    else if (S.phase === 'fp-kai') loose(false);
+  }
+
+  function sway(t) {
+    const k = S.kaiT;
+    let A;
+    if (S.phase === 'fp-hiki') A = 0.30;
+    else if (k < 0.8) A = 0.24;
+    else if (k < 2.6) A = 0.24 - (k - 0.8) / 1.8 * 0.19;
+    else if (k < 5) A = 0.05;
+    else A = 0.05 + (k - 5) * 0.08;
+    const p = S.ph;
+    return {
+      x: A * (Math.sin(t * 1.1 + p[0]) * 0.6 + Math.sin(t * 2.3 + p[1]) * 0.3 + Math.sin(t * 4.7 + p[2]) * 0.12),
+      y: A * (Math.sin(t * 0.9 + p[3]) * 0.55 + Math.sin(t * 2.9 + p[4]) * 0.3 + Math.sin(t * 5.3 + p[5]) * 0.12)
+    };
+  }
+  function gauss() { return (Math.random() + Math.random() + Math.random() - 1.5) / 0.75; }
+
+  function loose(short) {
+    tsurune();
+    const sw = sway(S.t);
+    S.frozen = { x: S.aimX + sw.x, y: S.aimY + sw.y };
+    let d;
+    if (short) {
+      d = { ground: true, x: S.frozen.x * 0.6 + gauss() * 0.4, z: 6 + S.draw * 16, hit: false,
+            label: '引き不足', sub: '会に入る前に離れ、矢は矢道に落ちました' };
+    } else {
+      const hayake = S.kaiT < 0.8, motare = S.kaiT > 6;
+      const jit = hayake ? 0.16 : 0.03;
+      const x = S.frozen.x + gauss() * jit;
+      const y = S.frozen.y + gauss() * jit - (hayake ? 0.08 : 0);
+      const r = Math.hypot(x, y);
+      const hit = r <= MR;
+      const cm = r * 100;
+      let label, sub;
+      if (hit) { label = '中り'; sub = ringName(r) + '　中心から ' + cm.toFixed(1) + ' cm'; }
+      else { label = '外れ'; sub = dirWord(x, y) + '、的の縁から ' + (cm - MR * 100).toFixed(1) + ' cm（中心から ' + cm.toFixed(1) + ' cm）'; }
+      if (hayake) sub += '・早気'; else if (motare) sub += '・もたれ';
+      d = { ground: false, x, y, r, hit, label, sub, ya: S.shot };
+    }
+    S.shotData = d;
+    go('fp-flight'); setStep(6, d.ground ? '' : '弓返り');
+  }
+  function ringName(r) {
+    const rings = MTYPE === 'kasumi' ? KASUMI : HOSHI;
+    const k = MR / MATO_R;
+    for (const g of rings) if (r <= g.r * k) return g.name;
+    return '外';
+  }
+  function dirWord(x, y) {
+    if (Math.abs(x) > Math.abs(y)) return x > 0 ? '前（右）' : '後ろ（左）';
+    return y > 0 ? '上' : '下';
+  }
+  function landed() {
+    const d = S.shotData;
+    impact(d.hit);
+    if (!d.ground) S.stuck.push({ x: d.x, y: d.y, ya: C ? C.round - 1 : S.shot, hit: d.hit, tx: S.myTx, label: C ? arrowLabel(C.cur) : YA[S.shot], fe: (C ? C.cur : S.look).fe });
+    if (C) C.cur.rec[C.round - 1] = { hit: d.hit, r: d.ground ? Infinity : d.r, small: MR < MATO_R };
+    S.results.push(d.hit);
+    stats.total++; if (d.hit) stats.hits++;
+    S.shot++;
+    if (!C && S.shot === 4 && S.results.every(Boolean)) stats.kaichu++;
+    save(); renderStats(); renderMarks(); renderBoard();
+    if (d.ground) { callout(d.label, d.sub, 'miss', 1800); go('fp-ground'); }
+    else { S.focusTx = S.myTx; go('closeup'); }
+  }
+  function showResult() {
+    go('result'); renderMarks();
+    const n = S.results.filter(Boolean).length;
+    $('resTitle').textContent = n === 4 ? '皆中' : n === 0 ? '残念' : KANJI_NUM[n] + '中';
+    $('resMarks').innerHTML = S.results.map(r => r ? '○' : '<span class="miss">×</span>').join('');
+    $('resSeal').textContent = n === 4 ? '皆中' : '記録';
+    $('resSub').textContent = (prefs.mato === 'kasumi' ? '霞的' : '星的') + '　四射' + n + '中　通算 ' + stats.hits + ' / ' + stats.total + '（' + Math.round(stats.hits / stats.total * 100) + '%）';
+    $('result').hidden = false; $('nextBtn').focus();
+    renderPrefs();
+  }
+
+  // ================= competition (射詰競射・遠近競射) =================
+  const LEVELS = {
+    easy:   { name: '易しい', sigma: 0.17 },   // 的中率 およそ4割
+    normal: { name: '普通',   sigma: 0.12 },   // およそ7割
+    strong: { name: '強い',   sigma: 0.085 },  // およそ9割
+    oni:    { name: '鬼',     sigma: 0.05 }    // ほぼ外さない
+  };
+  const AI_NAMES = ['佐藤', '鈴木', '高橋', '田中', '渡辺', '伊藤', '山本', '中村', '小林', '加藤'];
+  const AI_HAKAMA = ['#2a2a2c', '#232838', '#1c1b1d', '#2b2f3a'];
+  const DOGI = ['#f7f4ec', '#283350', '#1f1d1c']; // 白・紺・黒
+  function randDogi() { return DOGI[Math.floor(Math.random() * DOGI.length)]; }
+  // 矢羽: [筈側(上), 板付側(下)]
+  const FW = '#eee8da', FB = '#1d1b1a', FC = '#8a5a35';
+  const FEATHERS = [{ name: '全白', c: [FW, FW] }, { name: '全黒', c: [FB, FB] }, { name: '上白下黒', c: [FW, FB] }, { name: '上黒下白', c: [FB, FW] }, { name: '全茶', c: [FC, FC] }];
+  const KAKE = ['#c9a052', '#1f1c1a', '#efeadf']; // 弽: 黄（鹿革の地色）・黒・白
+  function randKake() { return KAKE[Math.floor(Math.random() * KAKE.length)]; }
+  const MUNEATE = ['#1c1a19', '#f2eee6']; // 胸当て: 黒・白
+  function randMuneate() { return MUNEATE[Math.floor(Math.random() * MUNEATE.length)]; }
+  function randFeather() { return FEATHERS[Math.floor(Math.random() * FEATHERS.length)]; }
+  const IZUME_MAX = 8;          // 射詰でここまで決まらなければ遠近競射
+  const HACHISUN_FROM = 4;      // この射から八寸的（直径24cm）
+  const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+  const KNUM = ['〇','一','二','三','四','五','六','七','八','九','十'];
+  const knum = n => n <= 10 ? KNUM[n] : String(n);
+  function posNames(n) {
+    return { 2: ['大前', '落'], 3: ['大前', '中', '落'], 4: ['大前', '二的', '落前', '落'], 5: ['大前', '二的', '中', '落前', '落'] }[n];
+  }
+  function normal() { let u = 0, v = 0; while (!u) u = Math.random(); while (!v) v = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); }
+
+  function startMatch() {
+    const lv = LEVELS[prefs.level];
+    const names = shuffle(AI_NAMES.slice()).slice(0, prefs.opp);
+    const archers = [{ name: 'あなた', ai: false, hakama: '#1f2230', dogi: randDogi(), fe: randFeather(), kake: randKake(), gender: prefs.gender, muneate: randMuneate() }]
+      .concat(names.map((n, i) => ({ name: n, ai: true, sigma: lv.sigma * (0.9 + Math.random() * 0.2), hakama: AI_HAKAMA[i % 4], dogi: randDogi(), fe: randFeather(), kake: randKake(), gender: Math.random() < 0.5 ? 'm' : 'f', muneate: randMuneate() })));
+    shuffle(archers);
+    const pn = posNames(archers.length);
+    const me = archers.findIndex(a => !a.ai);
+    archers.forEach((a, i) => { a.idx = i; a.pos = pn[i]; a.rec = []; a.alive = true; a.outRound = null; a.enkin = null; a.tx = (me - i) * 2; });
+    C = { mode: prefs.mode, stage: prefs.mode, archers, round: 0, pool: archers.slice(), turn: 0, shooters: [], cur: null, firstShot: true };
+    MR = MATO_R; MTYPE = prefs.mato; S.myTx = 0; S.stuck = []; S.results = []; S.shot = 0;
+    $('result').hidden = true; $('boardCard').hidden = false; $('marksCard').hidden = true;
+    pose = P.shitsu; S.actor = null; go('match-wait'); setStep(-1); renderBoard(); renderPrefs();
+    const title = C.mode === 'izume' ? '射詰競射' : '遠近競射';
+    $('orderTitle').textContent = title;
+    $('orderSub').textContent = (C.mode === 'izume'
+      ? '一人一本ずつ射て、外した者から抜けていきます。全員が外した回は全員が残ります。' + knum(HACHISUN_FROM) + '射目からは八寸的（直径24cm）で、中りは◎で記録します。' + knum(IZUME_MAX) + '射で決まらなければ遠近競射で決着をつけます。'
+      : '一人一本ずつ射て、的の中心に近い順に順位が決まります。外れた矢は中った矢より下位で、外れ同士は同順位。全員が外したときは射直します。')
+      + '　相手の強さ：' + lv.name;
+    $('orderTable').innerHTML = '<tr><th>射順</th><th>射手</th></tr>' + archers.map(a => '<tr class="' + (a.ai ? '' : 'me') + '"><td class="mk">' + a.pos + '</td><td>' + a.name + '</td></tr>').join('');
+    S.look = archers.find(a => !a.ai); TPL = null;
+    $('orderPanel').hidden = false; $('orderBtn').focus();
+  }
+
+  function beginRound() {
+    C.round++;
+    if (C.stage === 'izume' && C.round === HACHISUN_FROM && MR === MATO_R) { MR = 0.12; MTYPE = 'hoshi'; S.stuck = []; }
+    C.shooters = C.archers.filter(a => C.stage === 'izume' ? a.alive : C.pool.includes(a));
+    if (C.stage !== 'izume') S.stuck = [];   // 遠近競射は一つの的で。射直しのたびに矢を抜く
+    C.turn = 0; renderBoard();
+    nextTurn();
+  }
+
+  function nextTurn() {
+    if (C.turn >= C.shooters.length) { endRound(); return; }
+    const a = C.cur = C.shooters[C.turn];
+    S.actor = a; S.calloutShown = false; renderBoard();
+    callout(a.pos + '　' + a.name, (C.stage === 'izume' ? '射詰 ' : C.stage === 'kettei' ? '順位決定 ' : '遠近 ') + knum(C.round) + '射目' + (MR !== MATO_R ? '・八寸的' : ''), '', 1600);
+    if (a.ai) {
+      pose = C.firstShot ? P.ashi2 : P.taoshi;
+      S.aiKai = 2 + Math.random() * 1.6; S.frozen = { x: 0, y: 0 };
+      go('ai-prep');
+    } else {
+      S.myTx = 0; S.actor = a;
+      prepShot(C.firstShot && !a.shotOnce); a.shotOnce = true;
+    }
+  }
+
+  // 射詰は各自の的、遠近競射（順位決定を含む）は全員が一つの的を射る
+  function targetX(a) { return C && C.stage === 'izume' ? a.tx : 0; }
+  function arrowLabel(a) { return C.stage === 'izume' ? C.round + '射目' : a.name; }
+  function aiLoose() {
+    const a = C.cur;
+    tsurune();
+    const x = normal() * a.sigma, y = normal() * a.sigma;
+    const r = Math.hypot(x, y), hit = r <= MR;
+    a.rec[C.round - 1] = { hit, r, small: MR < MATO_R };
+    S.stuck.push({ x, y, ya: C.round - 1, hit, tx: targetX(a), label: arrowLabel(a), fe: a.fe });
+    const cm = r * 100;
+    S.aiShot = { hit, label: (hit ? '中り' : '外れ'), sub: a.name + '　' + (hit ? ringName(r) + '　中心から ' + cm.toFixed(1) + ' cm' : '的の縁から ' + (cm - MR * 100).toFixed(1) + ' cm（中心から ' + cm.toFixed(1) + ' cm）') };
+  }
+
+  function recText(a) {
+    return a.rec.map((r, i) => {
+      if (!r) return '';
+      if (C.stage === 'enkin' || (C.enkinFrom && i + 1 >= C.enkinFrom)) return r.hit ? ' <span>' + (r.r * 100).toFixed(1) + 'cm</span>' : ' <span class="x">×</span>';
+      return r.hit ? (r.small ? '◎' : '○') : '<span class="x">×</span>';   // ◎ = 八寸的での的中
+    }).join('');
+  }
+  function renderBoard() {
+    if (!C) return;
+    $('boardLabel').textContent = (C.stage === 'izume' ? '射詰競射' : C.stage === 'kettei' ? '順位決定（遠近）' : '遠近競射') + (C.round ? '　' + knum(C.round) + '射目' : '');
+    $('board').innerHTML = C.archers.map(a => {
+      const out = C.stage === 'izume' ? !a.alive : !C.pool.includes(a);
+      const cls = 'brow' + (a === C.cur ? ' cur' : '') + (out ? ' out' : '');
+      return '<div class="' + cls + '"><span class="bpos">' + a.pos + '</span><span class="bname">' + a.name + '</span><span class="bmarks">' + (recText(a) || '—') + '</span></div>';
+    }).join('');
+  }
+
+  function endRound() {
+    C.firstShot = false; C.cur = null; S.actor = null;
+    const sh = C.shooters, rd = C.round - 1;
+    let msg = '';
+    if (C.stage === 'izume') {
+      const hitters = sh.filter(a => a.rec[rd] && a.rec[rd].hit);
+      if (hitters.length === 0) msg = '全員が外しました。全員がそのまま次の射に進みます。';
+      else {
+        const outs = sh.filter(a => !hitters.includes(a));
+        outs.forEach(a => { a.alive = false; a.outRound = C.round; });
+        msg = outs.length ? outs.map(a => a.name).join('・') + ' が抜けました。' : '全員が中てました。';
+      }
+      const alive = C.archers.filter(a => a.alive);
+      if (alive.length === 1) { finishMatch(); return; }
+      if (C.round >= IZUME_MAX) {
+        C.stage = 'enkin'; C.pool = alive; C.enkinFrom = C.round + 1;
+        msg += knum(IZUME_MAX) + '射で決まらなかったため、残る' + alive.length + '人で遠近競射を行います。';
+      } else if (C.round + 1 === HACHISUN_FROM) msg += '次の射から八寸的（直径24cm）に掛け替えます。';
+    } else if (C.stage === 'kettei') {
+      const hits = sh.filter(a => a.rec[rd] && a.rec[rd].hit);
+      if (hits.length === 0) msg = '全員が外しました。同じ顔ぶれで射直します。';
+      else {
+        hits.forEach(a => { a.kettei = a.rec[rd].r; });
+        const misses = sh.filter(a => !hits.includes(a));
+        if (misses.length > 1 && misses.some(a => !a.ai)) {
+          // あなたを含む外れ同士は、その顔ぶれでもう一度
+          misses.forEach((a, i) => { a.kettei = 0.3; });
+          C.pool = misses;
+          msg = hits.map(a => a.name).join('・') + ' の順位が決まりました。外れた ' + misses.map(a => a.name).join('・') + ' で射直します。';
+        } else {
+          // AI同士の外れは省略して順位をつける
+          shuffle(misses.slice()).forEach((a, i) => { a.kettei = 0.3 + i * 0.05; a.ketteiSim = misses.length > 1; });
+          C.tieResolved = true; finishMatch(); return;
+        }
+      }
+    } else {
+      const hits = sh.filter(a => a.rec[rd] && a.rec[rd].hit);
+      if (hits.length === 0) msg = '全員が外しました。同じ顔ぶれで射直します。';
+      else {
+        sh.forEach(a => { const r = a.rec[rd]; a.enkin = r.hit ? r.r : Infinity; });
+        finishMatch(); return;
+      }
+    }
+    renderBoard();
+    $('roundSeal').textContent = knum(C.round) + '射';
+    $('roundTitle').textContent = knum(C.round) + '射目の結果';
+    $('roundMsg').textContent = msg;
+    $('roundTable').innerHTML = '<tr><th>射順</th><th>射手</th><th>記録</th></tr>' + C.archers.map(a => {
+      const out = C.stage === 'izume' ? !a.alive : !C.pool.includes(a);
+      return '<tr class="' + (a.ai ? '' : 'me') + '"><td class="mk">' + a.pos + '</td><td' + (out ? ' class="out"' : '') + '>' + a.name + (out ? '（抜け）' : '') + '</td><td class="mk">' + (recText(a) || '—') + '</td></tr>';
+    }).join('');
+    $('roundBtn').textContent = (C.stage === 'enkin' || C.stage === 'kettei') && C.enkinFrom === C.round + 1 ? (C.stage === 'kettei' ? '順位決定へ' : '遠近競射へ') : '次の射へ';
+    pose = P.taoshi; go('match-wait'); setStep(-1);
+    $('roundPanel').hidden = false; $('roundBtn').focus();
+  }
+
+  function finishMatch() {
+    // 射詰で同じ回に抜けた者どうしは遠近競射で順位を決める。AI同士は省略して結果だけ決める
+    if (C.mode === 'izume' && !C.tieResolved) {
+      const groups = {};
+      C.archers.filter(a => !a.alive).forEach(a => (groups[a.outRound] = groups[a.outRound] || []).push(a));
+      let mine = null;
+      Object.values(groups).filter(g => g.length > 1).forEach(g => {
+        if (g.some(a => !a.ai)) { mine = g; return; }
+        const rs = shuffle(g.map((_, i) => 0.02 + i * 0.03));
+        g.forEach((a, i) => { a.kettei = rs[i]; a.ketteiSim = true; });
+      });
+      if (mine) {
+        C.stage = 'kettei'; C.pool = mine; if (!C.enkinFrom) C.enkinFrom = C.round + 1;
+        renderBoard();
+        $('roundSeal').textContent = '決定';
+        $('roundTitle').textContent = '順位決定の遠近競射';
+        $('roundMsg').textContent = knum(mine[0].outRound) + '射目で一緒に抜けた ' + mine.map(a => a.name).join('・') + ' で、遠近競射を一本ずつ行い順位を決めます。'
+          + (Object.values(groups).some(g => g.length > 1 && g !== mine) ? '（AI同士の順位決定は省略しています）' : '');
+        $('roundTable').innerHTML = '<tr><th>射順</th><th>射手</th></tr>' + C.archers.filter(a => mine.includes(a)).map(a => '<tr class="' + (a.ai ? '' : 'me') + '"><td class="mk">' + a.pos + '</td><td>' + a.name + '</td></tr>').join('');
+        $('roundBtn').textContent = '順位決定へ';
+        pose = P.taoshi; S.actor = null; go('match-wait'); setStep(-1);
+        $('roundPanel').hidden = false; $('roundBtn').focus();
+        return;
+      }
+      C.tieResolved = true;
+    }
+    // sort key: larger is better. 射詰 = the round an archer dropped out; 遠近 = closeness to the centre
+    const key = a => {
+      let k = 0;
+      if (C.mode === 'izume') k = a.alive ? 1000 : a.outRound + (a.kettei == null ? 0 : isFinite(a.kettei) ? 0.9 - a.kettei : 0);
+      if (a.enkin !== null && a.enkin !== undefined) k += 2000 + (isFinite(a.enkin) ? 1000 - Math.round(a.enkin * 1000) : 0);
+      return k;
+    };
+    C.archers.forEach(a => a.key = key(a));
+    C.archers.forEach(a => a.rank = 1 + C.archers.filter(b => b.key > a.key).length);
+    const ranked = C.archers.slice().sort((a, b) => a.rank - b.rank || a.idx - b.idx);
+    const me = C.archers.find(a => !a.ai);
+    const myShots = me.rec.filter(Boolean);
+    $('matchSeal').textContent = me.rank === 1 ? '優勝' : knum(me.rank) + '位';
+    $('matchTitle').textContent = me.rank === 1 ? (ranked.filter(a => a.rank === 1).length > 1 ? '一位（同率）' : '優勝') : knum(me.rank) + '位';
+    $('matchSub').textContent = (C.mode === 'izume' ? '射詰競射' : '遠近競射') + '・相手の強さ ' + LEVELS[prefs.level].name + '・' + C.archers.length + '人立ち　あなたの記録 ' + myShots.filter(r => r.hit).length + '中 / ' + myShots.length + '射';
+    $('matchTable').innerHTML = '<tr><th>順位</th><th>射順</th><th>射手</th><th>記録</th></tr>' + ranked.map(a =>
+      '<tr class="' + (a.ai ? '' : 'me') + '"><td class="rank">' + knum(a.rank) + '</td><td class="mk">' + a.pos + '</td><td>' + a.name + '</td><td class="mk">' + (recText(a) || '—') + (a.ketteiSim ? ' <small>（順位決定は省略）</small>' : '') + '</td></tr>').join('');
+    renderBoard();
+    pose = P.taoshi; S.actor = null; go('match-wait'); setStep(-1);
+    $('matchPanel').hidden = false; $('againBtn').focus();
+  }
+
+  // ================= input =================
+  cv.addEventListener('pointerdown', e => {
+    if (S.phase === 'tp-ready' || S.phase === 'tp-prep' || S.phase === 'tp-back') { cv.setPointerCapture(e.pointerId); S.ptr = { id: e.pointerId, x: e.clientX, y: e.clientY }; }
+    press();
+  });
+  cv.addEventListener('pointermove', e => {
+    if (!S.ptr || S.ptr.id !== e.pointerId) return;
+    if (S.phase === 'fp-hiki' || S.phase === 'fp-kai') {
+      S.aimX = clamp(S.aimX + (e.clientX - S.ptr.x) * 0.008, -1.5, 1.5);
+      S.aimY = clamp(S.aimY - (e.clientY - S.ptr.y) * 0.008, -1.2, 1.2);
+    }
+    S.ptr.x = e.clientX; S.ptr.y = e.clientY;
+  });
+  const up = e => { if (!S.ptr || S.ptr.id !== e.pointerId) return; S.ptr = null; releaseInput(); };
+  cv.addEventListener('pointerup', up);
+  cv.addEventListener('pointercancel', up);
+  addEventListener('keydown', e => {
+    if (e.code === 'Space') { e.preventDefault(); if (!e.repeat && !document.querySelector('.overlay:not([hidden])')) { S.keys.space = true; press(); } }
+    if (e.key.startsWith('Arrow')) { e.preventDefault(); S.keys[e.key] = true; }
+  });
+  addEventListener('keyup', e => {
+    if (e.code === 'Space' && S.keys.space) { S.keys.space = false; S.ptr = S.ptr; releaseInput(); }
+    if (e.key.startsWith('Arrow')) S.keys[e.key] = false;
+  });
+  const setMato = m => { prefs.mato = m; if (!C) MTYPE = m; save(); renderPrefs(); };
+  $('pickKasumi').addEventListener('click', () => setMato('kasumi'));
+  $('pickHoshi').addEventListener('click', () => setMato('hoshi'));
+  $('hudKasumi').addEventListener('click', () => setMato('kasumi'));
+  $('hudHoshi').addEventListener('click', () => setMato('hoshi'));
+  $('pickFast').addEventListener('click', () => { prefs.fast = true; save(); renderPrefs(); });
+  $('pickSlow').addEventListener('click', () => { prefs.fast = false; save(); renderPrefs(); });
+  $('speedFast').addEventListener('click', () => { prefs.fast = true; save(); renderPrefs(); });
+  $('speedSlow').addEventListener('click', () => { prefs.fast = false; save(); renderPrefs(); });
+  $('guideOn').addEventListener('click', () => { prefs.guide = true; save(); renderPrefs(); });
+  $('guideOff').addEventListener('click', () => { prefs.guide = false; save(); renderPrefs(); });
+  $('modePractice').addEventListener('click', () => { prefs.mode = 'practice'; save(); renderPrefs(); });
+  $('modeIzume').addEventListener('click', () => { prefs.mode = 'izume'; save(); renderPrefs(); });
+  $('modeEnkin').addEventListener('click', () => { prefs.mode = 'enkin'; save(); renderPrefs(); });
+  document.querySelectorAll('#oppSeg button').forEach(b => b.addEventListener('click', () => { prefs.opp = +b.dataset.v; save(); renderPrefs(); }));
+  document.querySelectorAll('#lvSeg button').forEach(b => b.addEventListener('click', () => { prefs.level = b.dataset.v; save(); renderPrefs(); }));
+  document.querySelectorAll('#genderSeg button').forEach(b => b.addEventListener('click', () => { prefs.gender = b.dataset.v; S.look = null; save(); renderPrefs(); }));
+  $('startBtn').addEventListener('click', () => { audio(); $('intro').hidden = true; if (prefs.mode === 'practice') startTachi(); else startMatch(); });
+  document.querySelectorAll('.setupBtn').forEach(b => b.addEventListener('click', () => {
+    ['result', 'matchPanel'].forEach(id => $(id).hidden = true); C = null; S.look = null; go('intro'); setStep(-1); $('intro').hidden = false; $('startBtn').focus();
+  }));
+  $('orderBtn').addEventListener('click', () => { $('orderPanel').hidden = true; beginRound(); });
+  $('roundBtn').addEventListener('click', () => { $('roundPanel').hidden = true; beginRound(); });
+  $('againBtn').addEventListener('click', () => { $('matchPanel').hidden = true; startMatch(); });
+  $('nextBtn').addEventListener('click', startTachi);
+  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+
+  // ================= update =================
+  const FAST = new Set(['tp-prep', 'tp-uchi', 'tp-daisan', 'tp-back', 'ai-prep', 'ai-uchi', 'ai-daisan']); // 引分けからは通常の速さ
+  function update(dt) {
+    S.t += dt; S.pt += dt * (prefs.fast && FAST.has(S.phase) ? 3 : 1);
+    S.fade = Math.max(0, S.fade - dt * 3.5);
+    if (S.phase === 'fp-hiki' || S.phase === 'fp-kai') {
+      const sp = dt * 0.25;
+      if (S.keys.ArrowLeft) S.aimX -= sp; if (S.keys.ArrowRight) S.aimX += sp;
+      if (S.keys.ArrowUp) S.aimY += sp; if (S.keys.ArrowDown) S.aimY -= sp;
+    }
+
+    switch (S.phase) {
+      case 'tp-prep': {
+        let t = S.pt, done = true;
+        for (const g of S.seq) {
+          if (t < g.d) { setStep(g.st, g.sub); pose = mix(P[g.a], P[g.b], ease(t / g.d)); done = false; break; }
+          t -= g.d;
+        }
+        if (done) {
+          pose = P.kamae; setStep(2, '整ったら押し続けて打起し');
+          if (S.ptr || S.keys.space) { S.hold = true; go('tp-uchi'); } else go('tp-ready');
+        }
+        break;
+      }
+      case 'tp-ready': pose = P.kamae; break;
+      case 'ai-prep': {
+        const seq = C.firstShot ? [['ashi2', 'dozu', 1, '胴造り'], ['dozu', 'torikake', 2, '取懸け'], ['torikake', 'kamae', 2, '手の内・物見']] : [['taoshi', 'dozu', 1, '胴造り'], ['dozu', 'torikake', 2, '取懸け'], ['torikake', 'kamae', 2, '手の内・物見']];
+        const k = Math.min(2.999, S.pt / 1.0); const g = seq[Math.floor(k)];
+        setStep(g[2], g[3]); pose = mix(P[g[0]], P[g[1]], ease(k - Math.floor(k)));
+        if (S.pt >= 3) go('ai-uchi');
+        break;
+      }
+      case 'ai-uchi': setStep(3, '額よりやや上、約四十五度'); pose = mix(P.kamae, P.uchi, ease(Math.min(1, S.pt / 1.6))); if (S.pt >= 1.6) go('ai-daisan'); break;
+      case 'ai-daisan': setStep(4, '大三　押大目引三分一'); pose = mix(P.uchi, P.daisan, ease(Math.min(1, S.pt / 1.3))); if (S.pt >= 1.3) go('ai-hiki'); break;
+      case 'ai-hiki': setStep(4, '矢束いっぱいまで'); pose = mix(P.daisan, P.kai, ease(Math.min(1, S.pt / 2.0))); if (S.pt >= 2.0) go('ai-kai'); break;
+      case 'ai-kai': setStep(5, '伸合い'); pose = P.kai; if (S.pt >= S.aiKai) { aiLoose(); go('ai-hanare'); } break;
+      case 'ai-hanare': {
+        setStep(S.pt < 0.5 ? 6 : 7, S.pt < 0.5 ? '弓返り' : '矢の行方を見定める'); pose = S.pt < 0.15 ? mix(P.kai, P.zanshin, S.pt / 0.15) : P.zanshin;
+        if (S.pt >= 1.4) { S.focusTx = targetX(C.cur); go('ai-closeup'); S.fade = 1; }
+        break;
+      }
+      case 'ai-closeup': {
+        setStep(7, '矢の行方を見定める');
+        if (S.pt > 0.75 && !S.calloutShown) { S.calloutShown = true; impact(S.aiShot.hit); renderBoard(); callout(S.aiShot.label, S.aiShot.sub, S.aiShot.hit ? '' : 'miss', 2000); }
+        if (S.pt > 3.0) { S.calloutShown = false; hideCallout(); C.turn++; nextTurn(); }
+        break;
+      }
+      case 'tp-uchi': {
+        setStep(3, '額よりやや上、約四十五度'); S.prog = Math.min(1, S.pt / 2.2);
+        pose = mix(P.kamae, P.uchi, ease(S.prog));
+        if (S.prog >= 1) go('tp-daisan');
+        break;
+      }
+      case 'tp-daisan': {
+        setStep(4, '大三　押大目引三分一'); S.prog = Math.min(1, S.pt / 1.8);
+        pose = mix(P.uchi, P.daisan, ease(S.prog));
+        if (S.prog >= 1) { go('fp-hiki'); S.fade = 1; }
+        break;
+      }
+      case 'tp-back': {
+        const u = Math.min(1, S.pt / 0.9);
+        pose = mix(S.poseFrom, P.kamae, ease(u)); setStep(2, 'やり直し');
+        if (u >= 1) { if (S.ptr || S.keys.space) { S.hold = true; go('tp-uchi'); } else go('tp-ready'); }
+        break;
+      }
+      case 'fp-hiki': {
+        setStep(4, '矢束いっぱいまで'); S.draw = Math.min(1, S.pt / 2.2);
+        if (S.draw >= 1) { go('fp-kai'); S.kaiT = 0; setStep(5, '伸合い　機が熟したら離す'); }
+        break;
+      }
+      case 'fp-kai': S.kaiT += dt; break;
+      case 'fp-flight': if (S.pt >= 0.6) landed(); break;
+      case 'fp-ground': if (S.pt > 1.6) { go('tp-zanshin'); S.fade = 1; } break;
+      case 'closeup': {
+        setStep(7, '矢の行方を見定める');
+        if (S.pt > 0.75 && !S.calloutShown) { S.calloutShown = true; const d = S.shotData; callout(d.label, d.sub, d.hit ? '' : 'miss', 2400); }
+        if (S.pt > 3.6) { go('tp-zanshin'); S.fade = 1; hideCallout(); }
+        break;
+      }
+      case 'tp-zanshin': {
+        S.calloutShown = false; S.frozen = null;
+        const t = S.pt;
+        if (t < 2.0) { pose = P.zanshin; setStep(7, '姿勢を保ち、矢所を見る'); }
+        else if (t < 3.4) { pose = mix(P.zanshin, P.taoshi, ease((t - 2.0) / 1.4)); setStep(7, '弓倒し'); }
+        else { pose = P.taoshi; if (C) { C.turn++; nextTurn(); } else if (S.shot >= 4) showResult(); else prepShot(false); }
+        break;
+      }
+    }
+  }
+
+  // ================= drawing helpers =================
+  function poly(pts, fill) { ctx.beginPath(); pts.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.closePath(); ctx.fillStyle = fill; ctx.fill(); }
+  function drawMatoFace(x, y, rpx, type) {
+    // wooden 的枠 edge, then paper
+    ctx.fillStyle = '#8a6a45'; ctx.beginPath(); ctx.arc(x, y, rpx * 1.03, 0, 7); ctx.fill();
+    const rings = type === 'kasumi' ? KASUMI : HOSHI;
+    for (let i = rings.length - 1; i >= 0; i--) {
+      ctx.fillStyle = rings[i].c === 'w' ? WHITE : BLACK;
+      ctx.beginPath(); ctx.arc(x, y, rpx * rings[i].r / MATO_R, 0, 7); ctx.fill();
+    }
+  }
+  // thumbnails in the intro
+  document.querySelectorAll('canvas[data-mato]').forEach(c => {
+    const g = c.getContext('2d'); const save = ctx;
+    const t = c.dataset.mato;
+    g.fillStyle = '#8a6a45'; g.beginPath(); g.arc(44, 44, 43, 0, 7); g.fill();
+    const rings = t === 'kasumi' ? KASUMI : HOSHI;
+    for (let i = rings.length - 1; i >= 0; i--) { g.fillStyle = rings[i].c === 'w' ? WHITE : BLACK; g.beginPath(); g.arc(44, 44, 41.5 * rings[i].r / MATO_R, 0, 7); g.fill(); }
+  });
+
+  // ================= third-person scene =================
+  function drawTP() {
+    const hy = H * 0.44;                    // floor/wall line
+    const vx = W * 0.42;
+    // ceiling
+    ctx.fillStyle = '#2a1d14'; ctx.fillRect(0, 0, W, H * 0.09);
+    // back wall (下座側) plaster
+    const wallR = W * 0.72;
+    ctx.fillStyle = '#e8e1d2'; ctx.fillRect(0, H * 0.09, wallR, hy - H * 0.09);
+    // 長押 beam and pillars
+    ctx.fillStyle = '#6b4c33'; ctx.fillRect(0, H * 0.17, wallR, H * 0.022);
+    ctx.fillStyle = '#5a3f2b';
+    for (let x = W * 0.02; x < wallR - 10; x += Math.max(140, W * 0.22)) ctx.fillRect(x, H * 0.09, Math.max(10, W * 0.014), hy - H * 0.09);
+    // 名札掛
+    const nx = W * 0.08, ny = H * 0.215, nw = Math.min(W * 0.34, 300), nh = H * 0.12;
+    ctx.fillStyle = '#7b5a3c'; ctx.fillRect(nx - 6, ny - 6, nw + 12, nh + 12);
+    ctx.fillStyle = '#d9c7a3';
+    const cols = Math.floor(nw / 11);
+    for (let r = 0; r < 3; r++) for (let c = 0; c < cols; c++) {
+      ctx.fillRect(nx + c * 11 + 1, ny + r * (nh / 3) + 2, 8, nh / 3 - 5);
+    }
+    ctx.fillStyle = 'rgba(40,30,20,.55)';
+    for (let r = 0; r < 3; r++) for (let c = 0; c < cols; c++) { if ((c * 7 + r * 3) % 5 === 0) continue; ctx.fillRect(nx + c * 11 + 4, ny + r * (nh / 3) + 6, 2, nh / 3 - 14); }
+    // open side toward the 矢道 (archer's left = screen right)
+    const sky = ctx.createLinearGradient(0, H * 0.09, 0, hy);
+    sky.addColorStop(0, '#b9cbd3'); sky.addColorStop(1, '#eef0e6');
+    ctx.fillStyle = sky; ctx.fillRect(wallR, H * 0.09, W - wallR, hy - H * 0.09);
+    ctx.fillStyle = '#7f9a5a'; ctx.fillRect(wallR, hy - H * 0.06, W - wallR, H * 0.06);
+    ctx.fillStyle = '#4f5f45'; ctx.fillRect(wallR, hy - H * 0.11, W - wallR, H * 0.05);
+    ctx.fillStyle = '#3b2a1e'; ctx.fillRect(wallR - 6, H * 0.09, Math.max(12, W * 0.016), hy - H * 0.09);
+    // floor (hinoki)
+    const fl = ctx.createLinearGradient(0, hy, 0, H);
+    fl.addColorStop(0, '#b8955f'); fl.addColorStop(1, '#d4b583');
+    // 射場の床は奥の壁の端から手前へ広がる。その外側は矢道の芝。線はすべて床の消失点に集まる
+    const vpx = vx, vpy = hy - H * 0.35;
+    const edgeX = y => vpx + (wallR - vpx) * (y - vpy) / (hy - vpy);
+    const yAtW = vpy + (W - vpx) * (hy - vpy) / (wallR - vpx);
+    const gr = ctx.createLinearGradient(0, hy, 0, H);
+    gr.addColorStop(0, '#7a965a'); gr.addColorStop(1, '#8aa766');
+    ctx.fillStyle = gr; ctx.fillRect(wallR, hy, W - wallR, H - hy);
+    const floorPoly = [[0, hy], [wallR, hy], yAtW < H ? [W, yAtW] : [edgeX(H), H], ...(yAtW < H ? [[W, H]] : []), [0, H]];
+    ctx.save(); ctx.beginPath(); floorPoly.forEach((q, k) => k ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1])); ctx.closePath();
+    ctx.fillStyle = fl; ctx.fill(); ctx.clip();
+    ctx.strokeStyle = 'rgba(90,60,30,.22)'; ctx.lineWidth = 1;
+    for (let i = -30; i <= 30; i++) { const x0 = vpx + i * W * 0.03; ctx.beginPath(); ctx.moveTo(x0, hy); ctx.lineTo(vpx + (x0 - vpx) * (H - vpy) / (hy - vpy), H); ctx.stroke(); }
+    ctx.restore();
+    ctx.fillStyle = '#7a5a3a'; ctx.fillRect(0, hy - 3, wallR, 5);
+    ctx.strokeStyle = '#5e432c'; ctx.lineWidth = Math.max(4, W * 0.006); // 床の縁
+    ctx.beginPath(); ctx.moveTo(wallR, hy - 2); ctx.lineTo(edgeX(H * 1.2), H * 1.2); ctx.stroke();
+
+    // archer
+    // the archer's scale and position are fixed per screen size and mode, never per frame,
+    // so the figure keeps one size through every movement
+    if (!TPL) {
+      const narrow = W <= 700;
+      const topH = narrow ? 215 : 0;                          // fixed reserve for the 射法八節 panel
+      const hudH = document.querySelector('.hud').offsetHeight;
+      const sc = Math.min((H - hudH - topH) * 0.9 / 3.5, (H - hudH) * 0.72 / 3.4, W / 2.25);
+      TPL = { s: sc, ox: narrow ? W * 0.40 : Math.max(W * 0.52, 300 + sc * 0.9), oy: Math.min(H * 0.93, H - hudH + 8) };
+    }
+    const s = TPL.s, ox = TPL.ox, oy = TPL.oy;
+    const look = S.actor || S.look || { hakama: '#1f2230' };
+    drawArcher(ox, oy, s, pose, look.hakama, look.dogi, look.fe, look.kake, look);
+    if (C && S.actor && S.phase !== 'match-wait') {
+      const tag = S.actor.pos + '　' + S.actor.name + (S.actor.ai ? '（' + LEVELS[prefs.level].name + '）' : '');
+      ctx.font = '700 15px ' + DFONT; const tw = ctx.measureText(tag).width;
+      const ty = oy - s * 2.15, tx = ox - s * 0.05;
+      ctx.fillStyle = S.actor.ai ? 'rgba(27,22,18,.82)' : 'rgba(184,67,47,.92)'; ctx.fillRect(tx - tw / 2 - 10, ty - 18, tw + 20, 26);
+      ctx.fillStyle = '#f3eee2'; ctx.textAlign = 'center'; ctx.fillText(tag, tx, ty);
+    }
+
+    if (S.phase === 'tp-ready') {
+      const blink = 0.55 + 0.45 * Math.sin(S.t * 3);
+      ctx.fillStyle = 'rgba(27,22,18,' + (0.75) + ')';
+      const msg = '押し続けて打起し';
+      ctx.font = '700 16px ' + DFONT; const tw = ctx.measureText(msg).width;
+      const px0 = W <= 700 ? W / 2 : ox; const py0 = W <= 700 ? H * 0.5 : H * 0.15;
+      ctx.fillRect(px0 - tw / 2 - 16, py0 - 22, tw + 32, 34);
+      ctx.fillStyle = 'rgba(243,238,226,' + blink + ')'; ctx.textAlign = 'center'; ctx.fillText(msg, px0, py0);
+    }
+  }
+
+  function drawArcher(ox, oy, s, p, hakama, dogi, fe, kake, lk) {
+    const female = lk && lk.gender === 'f';
+    dogi = dogi || '#f7f4ec';
+    const darkGi = dogi !== '#f7f4ec';
+    const X = v => ox + v[0] * s, Y = v => oy - v[1] * s;
+    const pt = v => [X(v), Y(v)];
+    const Ls = [0.19, 1.42], Rs = [-0.19, 1.42];
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    // shadow
+    ctx.fillStyle = 'rgba(60,40,20,.18)'; ctx.beginPath(); ctx.ellipse(ox, oy, s * 0.6, s * 0.06, 0, 0, 7); ctx.fill();
+    // tabi
+    ctx.fillStyle = '#f5f2ea';
+    ctx.beginPath(); ctx.ellipse(X([p.fR, 0]) - s * 0.02, oy - s * 0.02, s * 0.09, s * 0.035, 0, 0, 7); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(X([p.fL, 0]) + s * 0.02, oy - s * 0.02, s * 0.09, s * 0.035, 0, 0, 7); ctx.fill();
+    // hakama: one wide skirt-like garment; the hem widens as the feet step apart
+    const hemL = Math.max(p.fL, 0.12) + 0.13, hemR = Math.min(p.fR, -0.12) - 0.13;
+    ctx.fillStyle = hakama;
+    ctx.beginPath();
+    ctx.moveTo(X([-0.20, 0]), Y([0, 1.02])); ctx.lineTo(X([0.20, 0]), Y([0, 1.02]));
+    ctx.quadraticCurveTo(X([hemL * 0.8, 0]), Y([0, 0.5]), X([hemL, 0]), Y([0, 0.05]));
+    ctx.quadraticCurveTo(X([0, 0]), Y([0, 0.02]), X([hemR, 0]), Y([0, 0.05]));
+    ctx.quadraticCurveTo(X([hemR * 0.8, 0]), Y([0, 0.5]), X([-0.20, 0]), Y([0, 1.02]));
+    ctx.fill();
+    // pleats (襞)
+    ctx.strokeStyle = 'rgba(255,255,255,.10)'; ctx.lineWidth = Math.max(1, s * 0.006);
+    [-0.6, -0.3, 0, 0.3, 0.6].forEach(f => { ctx.beginPath(); ctx.moveTo(X([f * 0.18, 0]), Y([0, 1.0])); ctx.lineTo(X([f * (f < 0 ? -hemR : hemL) * 0.85, 0]), Y([0, 0.07])); ctx.stroke(); });
+    // torso (弓道衣)
+    poly([pt([-0.21, 1.45]), pt([0.21, 1.45]), pt([0.19, 1.0]), pt([-0.19, 1.0])], dogi);
+    ctx.strokeStyle = darkGi ? 'rgba(243,238,226,.45)' : '#cfc7b6'; ctx.lineWidth = Math.max(1, s * 0.008);
+    ctx.beginPath(); ctx.moveTo(X([-0.07, 1.46]), Y([0, 1.46])); ctx.lineTo(X([0.04, 1.18]), Y([0, 1.18])); ctx.lineTo(X([0.08, 1.46]), Y([0, 1.46])); ctx.stroke();
+    // obi line
+    ctx.fillStyle = hakama; ctx.fillRect(X([-0.2, 0]), Y([0, 1.06]), s * 0.4, s * 0.05);
+    // 胸当て (八角胸当て): an octagonal plate over the whole chest, about 36 cm wide and 23 cm tall.
+    // Strings from the upper corners go over the shoulders and those from the lower corners round the sides; they cross on the back.
+    if (female) {
+      const mc = lk.muneate || MUNEATE[0], light = mc !== MUNEATE[0];
+      const w = 0.17, top = 1.40, bot = 1.17, ch = 0.055;   // half-width, top, bottom, corner chamfer (m)
+      const oct = [[-w + ch, top], [w - ch, top], [w, top - ch], [w, bot + ch], [w - ch, bot], [-w + ch, bot], [-w, bot + ch], [-w, top - ch]];
+      ctx.strokeStyle = light ? '#e9e4d8' : '#2a2725'; ctx.lineWidth = Math.max(1.2, s * 0.008);
+      [[-w + ch, top, -0.17, 1.45], [w - ch, top, 0.17, 1.45], [-w, bot + 0.02, -0.21, bot + 0.02], [w, bot + 0.02, 0.21, bot + 0.02]].forEach(q => {
+        ctx.beginPath(); ctx.moveTo(X([q[0], 0]), Y([0, q[1]])); ctx.lineTo(X([q[2], 0]), Y([0, q[3]])); ctx.stroke();
+      });
+      poly(oct.map(q => pt(q)), mc);
+      ctx.strokeStyle = light ? 'rgba(80,65,50,.55)' : 'rgba(243,238,226,.25)'; ctx.lineWidth = Math.max(1, s * 0.005);
+      ctx.beginPath(); oct.forEach((q, k) => k ? ctx.lineTo(X(q), Y(q)) : ctx.moveTo(X(q), Y(q))); ctx.closePath(); ctx.stroke();
+      // stitching along the edge
+      const inset = oct.map(q => [q[0] * 0.88, 1.285 + (q[1] - 1.285) * 0.84]);
+      ctx.setLineDash([Math.max(1, s * 0.01), Math.max(1, s * 0.008)]);
+      ctx.strokeStyle = light ? 'rgba(80,65,50,.45)' : 'rgba(243,238,226,.35)';
+      ctx.beginPath(); inset.forEach((q, k) => k ? ctx.lineTo(X(q), Y(q)) : ctx.moveTo(X(q), Y(q))); ctx.closePath(); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    // neck + head
+    ctx.fillStyle = '#e2bf9c'; ctx.fillRect(X([-0.04, 0]), Y([0, 1.55]), s * 0.08, s * 0.12);
+    const hx = X([0.0, 0]), hy = Y([0, 1.63]), hr = s * 0.105;
+    const turn = p.head; // 0: facing the camera, 1: 物見 (face turned to the target, screen right)
+    const SKIN = '#e8c6a2', HAIR = '#1d1815', SHADE = '#c9a27e';
+    if (female) {
+      // short ponytail tied at the back of the head: hangs behind when facing front, shows at the back when turned (物見)
+      const tx = hx - hr * 0.78 * turn, ty = hy - hr * 0.2;
+      ctx.fillStyle = HAIR;
+      ctx.beginPath();
+      ctx.moveTo(tx - hr * 0.18, ty);
+      ctx.quadraticCurveTo(tx - hr * (0.25 + 0.55 * turn), ty + hr * 0.55, tx - hr * (0.12 + 0.45 * turn), ty + hr * 1.15);
+      ctx.quadraticCurveTo(tx - hr * (0.0 + 0.2 * turn), ty + hr * 0.75, tx + hr * 0.18, ty);
+      ctx.closePath(); ctx.fill();
+    }
+    ctx.fillStyle = SKIN; ctx.beginPath(); ctx.ellipse(hx, hy, hr * 0.86, hr, 0, 0, 7); ctx.fill();
+    // hair is clipped to the head's own outline so it can never drift off the head
+    ctx.save();
+    ctx.beginPath(); ctx.ellipse(hx, hy - hr * 0.04, hr * 0.93, hr * 1.07, 0, 0, 7); ctx.clip();
+    ctx.fillStyle = HAIR;
+    // crown and hairline
+    ctx.beginPath();
+    ctx.moveTo(hx - hr * 1.2, hy - hr * 1.3); ctx.lineTo(hx + hr * 1.2, hy - hr * 1.3);
+    ctx.lineTo(hx + hr * 1.2, hy - hr * (0.12 + turn * 0.18));
+    ctx.quadraticCurveTo(hx + hr * (0.1 + turn * 0.4), hy - hr * (0.62 - turn * 0.1), hx - hr * 1.2, hy - hr * (0.12 - turn * 0.5));
+    ctx.closePath(); ctx.fill();
+    // sides: thin sideburns when facing front, the back of the head when turned
+    const backEdge = hx + hr * lerp(-0.74, 0.12, turn);
+    ctx.beginPath();
+    ctx.moveTo(hx - hr * 1.2, hy - hr * 0.5); ctx.lineTo(backEdge, hy - hr * 0.5);
+    ctx.quadraticCurveTo(backEdge - hr * 0.08, hy + hr * 0.3, backEdge - hr * lerp(0.0, 0.25, turn), hy + hr * lerp(0.15, 0.62, turn));
+    ctx.lineTo(hx - hr * 1.2, hy + hr * 0.8); ctx.closePath(); ctx.fill();
+    if (turn < 1) { ctx.globalAlpha = 1 - turn; ctx.fillRect(hx + hr * 0.74, hy - hr * 0.5, hr * 0.3, hr * 0.62); ctx.globalAlpha = 1; }
+    ctx.restore();
+    if (female && turn > 0.3) { ctx.fillStyle = '#7d2b20'; ctx.globalAlpha = Math.min(1, (turn - 0.3) * 2); ctx.beginPath(); ctx.ellipse(hx - hr * 0.8 * turn, hy - hr * 0.2, hr * 0.1, hr * 0.15, 0, 0, 7); ctx.fill(); ctx.globalAlpha = 1; }
+    // features
+    ctx.fillStyle = '#2b211b';
+    if (turn < 0.5) {
+      ctx.globalAlpha = 1 - turn * 2;
+      ctx.beginPath(); ctx.ellipse(hx - hr * 0.32, hy + hr * 0.08, hr * 0.09, hr * 0.05, 0, 0, 7); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(hx + hr * 0.32, hy + hr * 0.08, hr * 0.09, hr * 0.05, 0, 0, 7); ctx.fill();
+      ctx.fillStyle = SHADE; ctx.fillRect(hx - hr * 0.16, hy + hr * 0.52, hr * 0.32, Math.max(1, hr * 0.05));
+      ctx.globalAlpha = 1;
+    } else {
+      ctx.globalAlpha = (turn - 0.5) * 2;
+      ctx.beginPath(); ctx.ellipse(hx + hr * 0.52, hy + hr * 0.06, hr * 0.08, hr * 0.05, 0, 0, 7); ctx.fill();
+      ctx.fillStyle = SKIN; // nose
+      ctx.beginPath(); ctx.moveTo(hx + hr * 0.8, hy + hr * 0.0); ctx.lineTo(hx + hr * 0.97, hy + hr * 0.3); ctx.lineTo(hx + hr * 0.8, hy + hr * 0.36); ctx.fill();
+      ctx.fillStyle = SHADE; // ear
+      ctx.beginPath(); ctx.ellipse(hx + hr * 0.02, hy + hr * 0.12, hr * 0.13, hr * 0.2, 0, 0, 7); ctx.fill();
+      ctx.fillRect(hx + hr * 0.5, hy + hr * 0.58, hr * 0.22, Math.max(1, hr * 0.05));
+      ctx.globalAlpha = 1;
+    }
+
+    // right arm (behind bow) – sleeve + forearm + kake
+    const arm = (sh, el, ha, glove) => {
+      ctx.strokeStyle = dogi; ctx.lineWidth = s * 0.11;
+      ctx.beginPath(); ctx.moveTo(X(sh), Y(sh)); ctx.lineTo(X(el), Y(el)); ctx.stroke();
+      ctx.strokeStyle = '#e2bf9c'; ctx.lineWidth = s * 0.07;
+      ctx.beginPath(); ctx.moveTo(X(el), Y(el)); ctx.lineTo(X(ha), Y(ha)); ctx.stroke();
+      ctx.fillStyle = glove ? (kake || KAKE[0]) : '#e2bf9c';
+      ctx.beginPath(); ctx.arc(X(ha), Y(ha), s * (glove ? 0.055 : 0.045), 0, 7); ctx.fill();
+      if (glove) { ctx.strokeStyle = 'rgba(60,40,25,.55)'; ctx.lineWidth = Math.max(1, s * 0.006); ctx.stroke(); }
+    };
+    arm(Rs, p.Re, p.R, true);
+    // bow & arrow
+    drawBowTP(X, Y, s, p, fe);
+    arm(Ls, p.Le, p.L, false);
+  }
+
+  function drawBowTP(X, Y, s, p, fe) {
+    const G = p.L;
+    const u = [Math.sin(p.ang), Math.cos(p.ang)];
+    const n = [Math.cos(p.ang), -Math.sin(p.ang)]; // toward target
+    const side = p.flip ? -1 : 1;                  // after 弓返り the string is on the target side
+    const nockD = p.nock ? Math.hypot(p.R[0] - G[0], p.R[1] - G[1]) : 0.15;
+    const dr = clamp((nockD - 0.16) / 0.7, 0, 1);
+    const back = 0.15 + dr * 0.18;                 // tips pulled back toward the string side
+    const up = 1.46, lo = 0.75;                    // grip sits about one third from the bottom
+    const pt = (a, b) => [G[0] + u[0] * a - n[0] * b * side, G[1] + u[1] * a - n[1] * b * side];
+    const top = pt(up, back), bot = pt(-lo, back);
+    ctx.lineCap = 'round';
+    // string
+    ctx.strokeStyle = 'rgba(250,246,235,.95)'; ctx.lineWidth = Math.max(1, s * 0.006);
+    ctx.beginPath(); ctx.moveTo(X(top), Y(top));
+    if (p.nock) ctx.lineTo(X(p.R), Y(p.R));
+    ctx.lineTo(X(bot), Y(bot)); ctx.stroke();
+    // limb (bamboo, lacquer)
+    const c1 = pt(up * 0.35, -0.03), c2 = pt(up * 0.85, back * 0.55), c3 = pt(-lo * 0.4, -0.02), c4 = pt(-lo * 0.85, back * 0.55);
+    const g0 = pt(0, 0);
+    ctx.strokeStyle = '#4a2c18'; ctx.lineWidth = Math.max(3, s * 0.03);
+    ctx.beginPath(); ctx.moveTo(X(g0), Y(g0)); ctx.bezierCurveTo(X(c1), Y(c1), X(c2), Y(c2), X(top), Y(top)); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(X(g0), Y(g0)); ctx.bezierCurveTo(X(c3), Y(c3), X(c4), Y(c4), X(bot), Y(bot)); ctx.stroke();
+    // 握り革 (about 12 cm) and, directly above it, 矢摺籐 (about 9 cm of tightly wound rattan where the arrow rubs)
+    const g1 = pt(0.06, 0), g2 = pt(-0.06, 0), y1 = pt(0.15, 0);
+    ctx.strokeStyle = '#2f5597'; ctx.lineWidth = Math.max(4, s * 0.04);
+    ctx.beginPath(); ctx.moveTo(X(g1), Y(g1)); ctx.lineTo(X(g2), Y(g2)); ctx.stroke();
+    ctx.strokeStyle = '#2b2017'; ctx.lineWidth = Math.max(3.5, s * 0.034);
+    ctx.beginPath(); ctx.moveTo(X(g1), Y(g1)); ctx.lineTo(X(y1), Y(y1)); ctx.stroke();
+    ctx.strokeStyle = 'rgba(214,190,140,.55)'; ctx.lineWidth = 1;
+    for (let k = 0.07; k < 0.15; k += 0.012) { const a0 = pt(k, -0.016), a1 = pt(k + 0.004, 0.016); ctx.beginPath(); ctx.moveTo(X(a0), Y(a0)); ctx.lineTo(X(a1), Y(a1)); ctx.stroke(); }
+    // arrow
+    if (p.nock) {
+      const dx = G[0] - p.R[0], dy = G[1] - p.R[1], L = Math.hypot(dx, dy) || 1;
+      const AL = Math.max(0.98, L + 0.06);   // 矢束 + a few cm past the bow
+      const tip = [p.R[0] + dx / L * AL, p.R[1] + dy / L * AL];
+      ctx.strokeStyle = '#d9c59a'; ctx.lineWidth = Math.max(1.5, s * 0.012);
+      ctx.beginPath(); ctx.moveTo(X(p.R), Y(p.R)); ctx.lineTo(X(tip), Y(tip)); ctx.stroke();
+      // feathers
+      const fc = (fe || FEATHERS[0]).c;
+      const at = k => [p.R[0] + dx / L * k, p.R[1] + dy / L * k];
+      ctx.lineWidth = Math.max(3, s * 0.03); ctx.lineCap = 'butt';
+      ctx.strokeStyle = fc[0]; ctx.beginPath(); ctx.moveTo(X(at(0.04)), Y(at(0.04))); ctx.lineTo(X(at(0.105)), Y(at(0.105))); ctx.stroke();
+      ctx.strokeStyle = fc[1]; ctx.beginPath(); ctx.moveTo(X(at(0.105)), Y(at(0.105))); ctx.lineTo(X(at(0.17)), Y(at(0.17))); ctx.stroke();
+      ctx.lineCap = 'round';
+    }
+  }
+
+  // ================= first-person scene (true scale) =================
+  function fpAnchor() { return { Ax: Math.round(W * 0.5), Ay: Math.round(H * 0.47) }; }
+  function makeProj(aimX, aimY) {
+    const { Ax, Ay } = fpAnchor();
+    const ty = (MATO_Y - EYE) / DIST;
+    const ax = aimX / DIST, ay = aimY / DIST;
+    return (X, Y, Z) => [Ax + F * (X / Z - ax), Ay - F * ((Y - EYE) / Z - ty) + F * ay];
+  }
+  function quad(pr, pts, fill) { poly(pts.map(p => pr(p[0], p[1], p[2])), fill); }
+
+  function drawWorld(pr) {
+    const hz = pr(0, EYE, 1e6)[1];
+    const sky = ctx.createLinearGradient(0, hz - H * 0.6, 0, hz);
+    sky.addColorStop(0, '#93aebb'); sky.addColorStop(1, '#e6e4d8');
+    ctx.fillStyle = sky; ctx.fillRect(-W, -H * 4, W * 3, hz + H * 4);
+    // far trees (z = 60–70 m)
+    ctx.fillStyle = '#5b6b4f';
+    ctx.beginPath(); let p0 = pr(-60, 0, 70); ctx.moveTo(p0[0], p0[1]);
+    for (let x = -60; x <= 60; x += 1.5) { const h = 7 + Math.sin(x * 0.7) * 0.8 + Math.sin(x * 0.23 + 1) * 1.2 + Math.sin(x * 2.1) * 0.4; const q = pr(x, h, 70); ctx.lineTo(q[0], q[1]); }
+    p0 = pr(60, 0, 70); ctx.lineTo(p0[0], p0[1]); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#46553e';
+    ctx.beginPath(); p0 = pr(-50, 0, 45); ctx.moveTo(p0[0], p0[1]);
+    for (let x = -50; x <= 50; x += 1) { const h = 4.6 + Math.sin(x * 0.9 + 2) * 0.5 + Math.sin(x * 0.31) * 0.8 + Math.sin(x * 2.7) * 0.25; const q = pr(x, h, 45); ctx.lineTo(q[0], q[1]); }
+    p0 = pr(50, 0, 45); ctx.lineTo(p0[0], p0[1]); ctx.closePath(); ctx.fill();
+    // ground (grass beyond the range)
+    ctx.fillStyle = '#6e8a4c'; ctx.fillRect(-W, hz, W * 3, H * 6);
+    // 矢道 mowing stripes, z from 1.5 to 26.8
+    const zs = [1.5, 2.5, 3.6, 5, 6.6, 8.5, 10.7, 13.2, 16, 19.2, 22.8, 26.8];
+    for (let i = 0; i < zs.length - 1; i++) quad(pr, [[-12, 0, zs[i]], [12, 0, zs[i]], [12, 0, zs[i + 1]], [-12, 0, zs[i + 1]]], i % 2 ? '#7d9a58' : '#86a361');
+    // side fences
+    quad(pr, [[-12, 0, 2], [-12, 0, 27.4], [-12, 2.0, 27.4], [-12, 2.0, 2]], '#8c7a62');
+    quad(pr, [[12, 0, 2], [12, 0, 27.4], [12, 2.0, 27.4], [12, 2.0, 2]], '#7f6e58');
+    // 安土敷 sand strip
+    quad(pr, [[-12, 0, 26.8], [12, 0, 26.8], [12, 0, 28.0], [-12, 0, 28.0]], '#d8c8a6');
+    // 的場 back wall
+    quad(pr, [[-12.2, 0, 30.2], [12.2, 0, 30.2], [12.2, 3.5, 30.2], [-12.2, 3.5, 30.2]], '#4e3a2b');
+    // 安土 slope
+    const a0 = pr(-11.6, 0, 27.9), a1 = pr(11.6, 0, 27.9), a2 = pr(11.6, 2.4, 29.9), a3 = pr(-11.6, 2.4, 29.9);
+    const sg = ctx.createLinearGradient(0, a2[1], 0, a0[1]);
+    sg.addColorStop(0, '#b29b75'); sg.addColorStop(1, '#cdb894');
+    poly([a0, a1, a2, a3], sg);
+    // posts
+    [-11.8, 0.9, 11.8].forEach(x => quad(pr, [[x - 0.09, 0, 27.3], [x + 0.09, 0, 27.3], [x + 0.09, 3.15, 27.3], [x - 0.09, 3.15, 27.3]], '#3a2b20'));
+    // roof underside + fascia
+    quad(pr, [[-12.6, 3.15, 27.0], [12.6, 3.15, 27.0], [12.6, 3.5, 30.2], [-12.6, 3.5, 30.2]], '#2e2622');
+    quad(pr, [[-12.6, 3.15, 27.0], [12.6, 3.15, 27.0], [12.6, 3.42, 27.0], [-12.6, 3.42, 27.0]], '#1c1715');
+    // targets (neighbours at 2 m spacing, the archer's own at x=0)
+    const rpx = (F * MR / DIST);
+    (C && C.stage === 'izume' ? C.archers.map(a => a.tx) : [0]).forEach(x => {
+      const c = pr(x, MATO_Y, DIST);
+      ctx.fillStyle = 'rgba(70,50,30,.25)'; ctx.beginPath(); ctx.ellipse(c[0] + rpx * 0.12, c[1] + rpx * 0.12, rpx * 1.05, rpx * 1.05, 0, 0, 7); ctx.fill();
+      drawMatoFace(c[0], c[1], rpx, MTYPE);
+    });
+    // stuck arrows
+    S.stuck.forEach(a => {
+      const c = pr(a.tx + a.x, MATO_Y + a.y, DIST);
+      drawNock(c[0], c[1], F / DIST, a.ya, a.fe);
+    });
+  }
+
+  // arrow seen from behind (nock + three feathers). pxPerM = scale at the target
+  function drawNock(x, y, pxPerM, ya, fe) {
+    const fc = (fe || FEATHERS[0]).c;
+    const r = Math.max(0.6, pxPerM * 0.0045);
+    if (r * ZOOM < 1.5) { ctx.fillStyle = '#2a1e16'; ctx.beginPath(); ctx.arc(x, y, Math.max(0.9, r * 1.6), 0, 7); ctx.fill(); return; }
+    const fl = pxPerM * 0.017, fw = pxPerM * 0.004;
+    const dir = ya % 2 === 0 ? 1 : -1; // 甲矢と乙矢は羽の向きが逆
+    ctx.save(); ctx.translate(x, y);
+    for (let k = 0; k < 3; k++) {
+      const a = -Math.PI / 2 + k * Math.PI * 2 / 3;
+      ctx.save(); ctx.rotate(a);
+      ctx.fillStyle = fc[0];   // seen from behind: the 筈側 part faces the viewer, the 板付側 shows at the edge
+      ctx.beginPath(); ctx.moveTo(r, -fw * 0.4);
+      ctx.quadraticCurveTo(r + fl * 0.5, -fw * 0.5 + dir * fw * 1.6, r + fl, dir * fw * 0.6);
+      ctx.lineTo(r + fl, dir * fw * 0.6 + fw * 0.4);
+      ctx.quadraticCurveTo(r + fl * 0.5, fw * 0.5 + dir * fw * 1.6, r, fw * 0.4);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = fc[1] === fc[0] ? (fc[0] === FB ? 'rgba(200,190,170,.7)' : 'rgba(60,45,30,.6)') : fc[1]; ctx.lineWidth = Math.max(0.8, fw * (fc[1] === fc[0] ? 0.12 : 0.35)); ctx.stroke();
+      ctx.restore();
+    }
+    ctx.fillStyle = '#2a1e16'; ctx.beginPath(); ctx.arc(0, 0, r, 0, 7); ctx.fill();
+    ctx.fillStyle = '#c54a35'; ctx.beginPath(); ctx.arc(0, 0, r * 0.45, 0, 7); ctx.fill();
+    ctx.restore();
+  }
+
+  // bow + left fist + arrow as seen by the archer. Inner (right) edge of the bow is at Ax.
+  function drawFPBow(offY, alpha, drawAmt) {
+    const { Ax, Ay } = fpAnchor();
+    const bw = F * 0.028 / 0.75;     // 2.8 cm wide bow at 75 cm
+    const fistY = Ay + F * 0.045 + offY;
+    ctx.save(); ctx.globalAlpha = alpha;
+    // arrow: lies on the right of the bow, resting on the fist, running back to the cheek
+    if (drawAmt > 0) {
+      const tipX = Ax + bw * 0.1, tipY = fistY - F * 0.006;
+      const nearX = lerp(Ax + bw * 3, W * 0.78, drawAmt), nearY = lerp(fistY + bw, H * 1.08, drawAmt);
+      const g = ctx.createLinearGradient(tipX, tipY, nearX, nearY);
+      g.addColorStop(0, '#cdb88c'); g.addColorStop(1, '#a88e5f');
+      ctx.fillStyle = g;
+      const n = Math.atan2(nearY - tipY, nearX - tipX) + Math.PI / 2;
+      const w0 = Math.max(1.5, F * 0.003), w1 = F * 0.03 * drawAmt + w0;
+      ctx.beginPath();
+      ctx.moveTo(tipX + Math.cos(n) * w0, tipY + Math.sin(n) * w0);
+      ctx.lineTo(nearX + Math.cos(n) * w1, nearY + Math.sin(n) * w1);
+      ctx.lineTo(nearX - Math.cos(n) * w1, nearY - Math.sin(n) * w1);
+      ctx.lineTo(tipX - Math.cos(n) * w0, tipY - Math.sin(n) * w0);
+      ctx.fill();
+    }
+    // bow limb: slight curve, tapered toward the top, rattan bindings (籐)
+    const topY = -H * 0.2 + offY, botY = H * 1.3;  // the lower limb always reaches below the screen
+    const curve = y => { const t = (y - fistY) / (H * 1.2); return -Math.abs(t) * t * bw * 0.0 - t * t * bw * 2.2; };
+    ctx.beginPath();
+    for (let y = topY; y <= botY; y += 8) { const w = bw * (y < fistY ? lerp(1, 0.75, clamp((fistY - y) / (H * 0.9), 0, 1)) : 1); ctx.lineTo(Ax + curve(y), y); }
+    for (let y = botY; y >= topY; y -= 8) { const w = bw * (y < fistY ? lerp(1, 0.75, clamp((fistY - y) / (H * 0.9), 0, 1)) : 1); ctx.lineTo(Ax + curve(y) - w, y); }
+    ctx.closePath();
+    const lg = ctx.createLinearGradient(Ax - bw, 0, Ax, 0);
+    lg.addColorStop(0, '#3b2414'); lg.addColorStop(0.55, '#6a4426'); lg.addColorStop(1, '#4a2e19');
+    ctx.fillStyle = lg; ctx.fill();
+    ctx.fillStyle = '#2a1a10';
+    [-0.45, -0.32, 0.22, 0.36].forEach(k => { const y = fistY + k * H; ctx.fillRect(Ax + curve(y) - bw, y, bw, Math.max(2, F * 0.004)); });
+    // grip leather and left fist (手の内): the bow passes through the fist, thumb points at the target under the arrow
+    const cm = F * 0.01 / 0.75;                       // 1 cm on the bow at 75 cm from the eye
+    const gripTop = fistY - cm * 1;
+    ctx.fillStyle = '#2f5597'; ctx.fillRect(Ax - bw, gripTop, bw, cm * 12);  // 握り革 (約12cm)
+    // 矢摺籐 (約9cm): tightly wound rattan directly above the grip, where the arrow rests and rubs
+    ctx.fillStyle = '#2b2017'; ctx.fillRect(Ax - bw, gripTop - cm * 9, bw, cm * 9);
+    ctx.strokeStyle = 'rgba(214,190,140,.45)'; ctx.lineWidth = Math.max(1, cm * 0.12);
+    for (let yy = gripTop - cm * 9 + cm * 0.3; yy < gripTop; yy += cm * 0.45) { ctx.beginPath(); ctx.moveTo(Ax - bw, yy); ctx.lineTo(Ax, yy + cm * 0.15); ctx.stroke(); }
+    ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fillRect(Ax - bw, gripTop - cm * 9, bw, Math.max(1, cm * 0.25)); ctx.fillRect(Ax - bw, gripTop - Math.max(1, cm * 0.25), bw, Math.max(1, cm * 0.25));
+    const fw = F * 0.085, fh = F * 0.095, fx = Ax - bw * 0.5 - fw * 0.55, fy = fistY + F * 0.008;
+    const sk = ctx.createLinearGradient(fx, 0, fx + fw, 0);
+    sk.addColorStop(0, '#a77c58'); sk.addColorStop(0.6, '#c99e78'); sk.addColorStop(1, '#b88d68');
+    ctx.fillStyle = sk;
+    ctx.beginPath(); ctx.roundRect(fx, fy, fw, fh, fw * 0.28); ctx.fill();
+    ctx.strokeStyle = 'rgba(90,55,35,.45)'; ctx.lineWidth = Math.max(1, F * 0.0025);
+    for (let i = 1; i <= 3; i++) { const yy = fy + fh * (0.22 + i * 0.18); ctx.beginPath(); ctx.moveTo(fx + fw * 0.08, yy); ctx.quadraticCurveTo(fx + fw * 0.3, yy + fh * 0.05, fx + fw * 0.55, yy); ctx.stroke(); }
+    // thumb along the top, toward the target side
+    ctx.fillStyle = '#c99e78';
+    ctx.beginPath(); ctx.ellipse(Ax + bw * 0.2, fy + fh * 0.1, fw * 0.32, fh * 0.11, -0.12, 0, 7); ctx.fill();
+    ctx.strokeStyle = 'rgba(90,55,35,.4)'; ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawFP() {
+    const sw = (S.phase === 'fp-hiki' || S.phase === 'fp-kai') ? sway(S.t) : { x: 0, y: 0 };
+    const aim = S.frozen || { x: S.aimX + sw.x, y: S.aimY + sw.y };
+    const pr = makeProj(aim.x, aim.y);
+    const { Ax, Ay } = fpAnchor();
+
+    let zoom = 1, bowAlpha = 1;
+    if (S.phase === 'closeup' || S.phase === 'ai-closeup') {
+      const u = ease(Math.min(1, S.pt / 0.75));
+      const targetR = Math.min(W * 0.36, H * 0.25);
+      const k = targetR / (F * MR / DIST);
+      zoom = Math.pow(k, u); ZOOM = zoom;
+      bowAlpha = 0;
+      const c = pr(S.focusTx, MATO_Y, DIST);
+      const tx = lerp(c[0], W / 2, u), ty = lerp(c[1], H * (W <= 700 ? 0.6 : 0.56), u);
+      ctx.save(); ctx.translate(tx, ty); ctx.scale(zoom, zoom); ctx.translate(-c[0], -c[1]);
+      drawWorld(pr);
+      ctx.restore();
+      if (u >= 1) drawCloseupLabels(tx, ty, targetR);
+      return;
+    }
+    ZOOM = 1;
+    drawWorld(pr);
+
+    if (S.phase === 'fp-flight') drawFlight(pr);
+
+    let offY = 0, drawAmt = 1;
+    if (S.phase === 'fp-hiki') { const e = ease(S.draw); offY = -(1 - e) * H * 0.55; drawAmt = 0.25 + 0.75 * e; }
+    if (S.phase === 'fp-flight' || S.phase === 'fp-ground') { // 弓返り: the bow turns away out of view
+      const u = Math.min(1, S.pt / 0.25); bowAlpha = 1 - u; drawAmt = 0; offY = u * H * 0.1;
+    }
+    if (bowAlpha > 0) drawFPBow(offY, bowAlpha, drawAmt);
+
+    if (prefs.guide && (S.phase === 'fp-kai' || S.phase === 'fp-hiki')) {
+      ctx.strokeStyle = 'rgba(184,67,47,.95)'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(Ax + 4, Ay); ctx.lineTo(Ax + 22, Ay); ctx.stroke();
+      ctx.font = '500 11px ' + FONT; ctx.fillStyle = 'rgba(184,67,47,.95)'; ctx.textAlign = 'left';
+      ctx.fillText('半月', Ax + 26, Ay + 4);
+    }
+    if (S.phase === 'fp-kai') drawKaiMeter();
+    if (S.phase === 'fp-hiki') {
+      ctx.font = '700 15px ' + DFONT; ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(243,238,226,.9)';
+      ctx.fillText('引分け', W / 2, Math.min(H * 0.80, H - document.querySelector('.hud').offsetHeight - 34));
+    }
+  }
+
+  function drawFlight(pr) {
+    const d = S.shotData; const u = Math.min(1, S.pt / 0.6);
+    const z1 = d.ground ? d.z : DIST;
+    const start = [0.0, EYE - 0.07, 0.8];
+    const end = d.ground ? [d.x, 0, z1] : [d.x, MATO_Y + d.y, z1];
+    const z = lerp(start[2], end[2], u);
+    const f = (z - start[2]) / (end[2] - start[2]);
+    const arc = d.ground ? 0 : Math.sin(f * Math.PI) * 0.35;
+    const X = lerp(start[0], end[0], f), Y = lerp(start[1], end[1], f) + arc;
+    const zt = Math.max(0.5, z - 1.0);
+    const ft = (zt - start[2]) / (end[2] - start[2]);
+    const Xt = lerp(start[0], end[0], ft), Yt = lerp(start[1], end[1], ft) + (d.ground ? 0 : Math.sin(Math.max(0, ft) * Math.PI) * 0.35);
+    const a = pr(X, Y, z), b = pr(Xt, Yt, zt);
+    ctx.strokeStyle = '#cdb88c'; ctx.lineCap = 'round';
+    ctx.lineWidth = Math.max(1, F * 0.008 / z);
+    ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+  }
+
+  function drawKaiMeter() {
+    const k = S.kaiT;
+    const x = W / 2, y = Math.min(H * 0.80, H - document.querySelector('.hud').offsetHeight - 34), w = Math.min(260, W * 0.62);
+    ctx.fillStyle = 'rgba(27,22,18,.65)'; ctx.fillRect(x - w / 2 - 8, y - 22, w + 16, 42);
+    const sx = s => x - w / 2 + Math.min(1, s / 8) * w;
+    const seg = (a, b, c) => { ctx.fillStyle = c; ctx.fillRect(sx(a), y - 4, sx(b) - sx(a), 8); };
+    seg(0, 0.8, 'rgba(184,67,47,.7)'); seg(0.8, 2.6, 'rgba(243,238,226,.25)'); seg(2.6, 5, 'rgba(201,164,92,.95)'); seg(5, 6, 'rgba(243,238,226,.25)'); seg(6, 8, 'rgba(184,67,47,.7)');
+    ctx.fillStyle = '#f3eee2'; ctx.fillRect(sx(k) - 1.5, y - 10, 3, 20);
+    ctx.font = '500 11px ' + FONT; ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(243,238,226,.85)';
+    ctx.fillText('早気', (sx(0) + sx(0.8)) / 2 + 6, y - 9);
+    ctx.fillText('機', (sx(2.6) + sx(5)) / 2, y - 9);
+    ctx.fillText('もたれ', (sx(6) + sx(8)) / 2, y - 9);
+    ctx.fillText('会 ' + k.toFixed(1) + ' 秒', x, y + 16);
+  }
+
+  function drawCloseupLabels(cx, cy, R) {
+    // ring scale + label of each arrow of this 立ち
+    ctx.save();
+    ctx.font = '700 13px ' + DFONT; ctx.textAlign = 'left';
+    const mine = S.stuck.filter(a => a.tx === S.focusTx);
+    mine.forEach((a, i) => {
+      const x = cx + a.x / MR * R, y = cy - a.y / MR * R;
+      const last = i === mine.length - 1;
+      const lx = x + R * 0.09, ly = y - R * 0.06;
+      ctx.fillStyle = last ? 'rgba(184,67,47,.95)' : 'rgba(27,22,18,.7)';
+      const txt = a.label;
+      const tw = ctx.measureText(txt).width;
+      ctx.fillRect(lx - 4, ly - 13, tw + 8, 18);
+      ctx.fillStyle = '#f3eee2'; ctx.fillText(txt, lx, ly);
+    });
+    // nothing is written below the mato; only the names beside the arrows
+    ctx.restore();
+  }
+
+  // ================= main render =================
+  function draw() {
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+    const fp = S.phase.startsWith('fp') || S.phase === 'closeup' || S.phase === 'ai-closeup';
+    if (fp) drawFP(); else drawTP();
+    if (S.fade > 0) { ctx.fillStyle = 'rgba(20,14,10,' + S.fade + ')'; ctx.fillRect(0, 0, W, H); }
+  }
+
+  let last = performance.now();
+  function frame(now) {
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    update(dt); draw();
+    requestAnimationFrame(frame);
+  }
+  renderMarks(); renderStats(); renderPrefs(); setStep(-1);
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+
+</html>
