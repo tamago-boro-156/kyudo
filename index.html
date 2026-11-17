@@ -511,7 +511,7 @@ body { background: var(--wood); color: var(--paper); font-family: var(--ui); ove
     torikake: { L:[0.28,1.00], Le:[0.36,1.19], R:[0.11,1.00], Re:[-0.26,1.16], ang: 0.0, nock:1, flip:0, head:0, ...FA },
     tenouchi: { L:[0.25,1.12], Le:[0.42,1.26], R:[0.09,1.12], Re:[-0.30,1.22], ang: 0.0, nock:1, flip:0, head:0, ...FA },
     kamae:    { L:[0.25,1.12], Le:[0.42,1.26], R:[0.09,1.12], Re:[-0.30,1.22], ang: 0.0, nock:1, flip:0, head:1, ...FA },
-    uchi:     { L:[0.32,1.95], Le:[0.46,1.70], R:[0.15,1.95], Re:[-0.26,1.72], ang: 0.0, nock:1, flip:0, head:1, ...FA },
+    uchi:     { L:[0.12,1.95], Le:[0.34,1.72], R:[-0.04,1.95], Re:[-0.32,1.72], ang: 0.0, nock:1, flip:0, head:1, ...FA },
     daisan:   { L:[0.66,1.92], Le:[0.46,1.73], R:[0.02,1.92], Re:[-0.31,1.80], ang: 0.0, nock:1, flip:0, head:1, ...FA },
     kai:      { L:[0.84,1.52], Le:[0.53,1.50], R:[-0.22,1.53], Re:[-0.54,1.41], ang: 0.0, nock:1, flip:0, head:1, ...FA },
     zanshin:  { L:[0.86,1.48], Le:[0.53,1.46], R:[-0.80,1.46], Re:[-0.49,1.45], ang: 0.0, nock:0, flip:1, head:1, ...FA },
@@ -771,6 +771,7 @@ body { background: var(--wood); color: var(--paper); font-family: var(--ui); ove
       }
       const alive = C.archers.filter(a => a.alive);
       if (alive.length === 1) { finishMatch(); return; }
+      if (C.archers.some(a => !a.ai && !a.alive)) { settleRestSilently(); finishMatch(); return; }
       if (C.round >= IZUME_MAX) {
         C.stage = 'enkin'; C.pool = alive; C.enkinFrom = C.round + 1;
         msg += knum(IZUME_MAX) + '射で決まらなかったため、残る' + alive.length + '人で遠近競射を行います。';
@@ -813,6 +814,32 @@ body { background: var(--wood); color: var(--paper); font-family: var(--ui); ove
     $('roundPanel').hidden = false; $('roundBtn').focus();
   }
 
+  // あなたが抜けたあとの射詰（AI同士）は見せずに結果だけ決める
+  function settleRestSilently() {
+    let guard = 0;
+    while (C.archers.filter(a => a.alive).length > 1 && guard++ < 60) {
+      if (C.round >= IZUME_MAX) {
+        const pool = C.archers.filter(a => a.alive);
+        let hits = [];
+        while (!hits.length && guard++ < 60) {
+          C.round++;
+          pool.forEach(a => { const r = Math.hypot(normal() * a.sigma, normal() * a.sigma); a.rec[C.round - 1] = { hit: r <= MR, r, small: MR < MATO_R }; });
+          hits = pool.filter(a => a.rec[C.round - 1].hit);
+        }
+        if (!C.enkinFrom) C.enkinFrom = C.round;
+        pool.forEach(a => { const r = a.rec[C.round - 1]; a.enkin = r && r.hit ? r.r : Infinity; });
+        break;
+      }
+      C.round++;
+      if (C.round === HACHISUN_FROM) MR = 0.12;
+      const sh = C.archers.filter(a => a.alive);
+      sh.forEach(a => { const r = Math.hypot(normal() * a.sigma, normal() * a.sigma); a.rec[C.round - 1] = { hit: r <= MR, r, small: MR < MATO_R }; });
+      const hits = sh.filter(a => a.rec[C.round - 1].hit);
+      if (hits.length) sh.filter(a => !hits.includes(a)).forEach(a => { a.alive = false; a.outRound = C.round; });
+    }
+    C.settledSilently = true;
+  }
+
   function finishMatch() {
     // 射詰で同じ回に抜けた者どうしは遠近競射で順位を決める。AI同士は省略して結果だけ決める
     if (C.mode === 'izume' && !C.tieResolved) {
@@ -853,7 +880,7 @@ body { background: var(--wood); color: var(--paper); font-family: var(--ui); ove
     const myShots = me.rec.filter(Boolean);
     $('matchSeal').textContent = me.rank === 1 ? '優勝' : knum(me.rank) + '位';
     $('matchTitle').textContent = me.rank === 1 ? (ranked.filter(a => a.rank === 1).length > 1 ? '一位（同率）' : '優勝') : knum(me.rank) + '位';
-    $('matchSub').textContent = (C.mode === 'izume' ? '射詰競射' : '遠近競射') + '・相手の強さ ' + LEVELS[prefs.level].name + '・' + C.archers.length + '人立ち　あなたの記録 ' + myShots.filter(r => r.hit).length + '中 / ' + myShots.length + '射';
+    $('matchSub').textContent = (C.settledSilently ? 'あなたが抜けた時点で試合終了（残りの順位は省略して決定）・' : '') + (C.mode === 'izume' ? '射詰競射' : '遠近競射') + '・相手の強さ ' + LEVELS[prefs.level].name + '・' + C.archers.length + '人立ち　あなたの記録 ' + myShots.filter(r => r.hit).length + '中 / ' + myShots.length + '射';
     $('matchTable').innerHTML = '<tr><th>順位</th><th>射順</th><th>射手</th><th>記録</th></tr>' + ranked.map(a =>
       '<tr class="' + (a.ai ? '' : 'me') + '"><td class="rank">' + knum(a.rank) + '</td><td class="mk">' + a.pos + '</td><td>' + a.name + '</td><td class="mk">' + (recText(a) || '—') + (a.ketteiSim ? ' <small>（順位決定は省略）</small>' : '') + '</td></tr>').join('');
     renderBoard();
