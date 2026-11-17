@@ -1392,22 +1392,6 @@ body { background: var(--wood); color: var(--paper); font-family: var(--ui); ove
     const bw = F * 0.028 / 0.75;     // 2.8 cm wide bow at 75 cm
     const fistY = Ay + F * 0.045 + offY;
     ctx.save(); ctx.globalAlpha = alpha;
-    // arrow: lies on the right of the bow, resting on the fist, running back to the cheek
-    if (drawAmt > 0) {
-      const tipX = Ax + bw * 0.1, tipY = fistY - F * 0.006;
-      const nearX = lerp(Ax + bw * 3, W * 0.78, drawAmt), nearY = lerp(fistY + bw, H * 1.08, drawAmt);
-      const g = ctx.createLinearGradient(tipX, tipY, nearX, nearY);
-      g.addColorStop(0, '#cdb88c'); g.addColorStop(1, '#a88e5f');
-      ctx.fillStyle = g;
-      const n = Math.atan2(nearY - tipY, nearX - tipX) + Math.PI / 2;
-      const w0 = Math.max(1.5, F * 0.003), w1 = F * 0.03 * drawAmt + w0;
-      ctx.beginPath();
-      ctx.moveTo(tipX + Math.cos(n) * w0, tipY + Math.sin(n) * w0);
-      ctx.lineTo(nearX + Math.cos(n) * w1, nearY + Math.sin(n) * w1);
-      ctx.lineTo(nearX - Math.cos(n) * w1, nearY - Math.sin(n) * w1);
-      ctx.lineTo(tipX - Math.cos(n) * w0, tipY - Math.sin(n) * w0);
-      ctx.fill();
-    }
     // bow limb: slight curve, tapered toward the top, rattan bindings (籐)
     const topY = -H * 0.2 + offY, botY = H * 1.3;  // the lower limb always reaches below the screen
     const curve = y => { const t = (y - fistY) / (H * 1.2); return -Math.abs(t) * t * bw * 0.0 - t * t * bw * 2.2; };
@@ -1440,6 +1424,23 @@ body { background: var(--wood); color: var(--paper); font-family: var(--ui); ove
     ctx.fillStyle = '#c99e78';
     ctx.beginPath(); ctx.ellipse(Ax + bw * 0.2, fy + fh * 0.1, fw * 0.32, fh * 0.11, -0.12, 0, 7); ctx.fill();
     ctx.strokeStyle = 'rgba(90,55,35,.4)'; ctx.stroke();
+    const thumbTop = fy + fh * 0.1 - fh * 0.11;
+    // arrow: rests on the thumb on the right of the bow (drawn last so it lies on top of the thumb), running back to the cheek
+    if (drawAmt > 0) {
+      const tipX = Ax + bw * 0.15, tipY = thumbTop - Math.max(1.5, F * 0.003);
+      const nearX = lerp(Ax + bw * 3, W * 0.78, drawAmt), nearY = lerp(fistY + bw, H * 1.08, drawAmt);
+      const g = ctx.createLinearGradient(tipX, tipY, nearX, nearY);
+      g.addColorStop(0, '#cdb88c'); g.addColorStop(1, '#a88e5f');
+      ctx.fillStyle = g;
+      const n = Math.atan2(nearY - tipY, nearX - tipX) + Math.PI / 2;
+      const w0 = Math.max(1.5, F * 0.003), w1 = F * 0.03 * drawAmt + w0;
+      ctx.beginPath();
+      ctx.moveTo(tipX + Math.cos(n) * w0, tipY + Math.sin(n) * w0);
+      ctx.lineTo(nearX + Math.cos(n) * w1, nearY + Math.sin(n) * w1);
+      ctx.lineTo(nearX - Math.cos(n) * w1, nearY - Math.sin(n) * w1);
+      ctx.lineTo(tipX - Math.cos(n) * w0, tipY - Math.sin(n) * w0);
+      ctx.fill();
+    }
     ctx.restore();
   }
 
