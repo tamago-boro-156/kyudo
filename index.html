@@ -416,7 +416,7 @@ a.btn { text-decoration: none; display: inline-block; }
   const YA = ['甲矢','乙矢','甲矢','乙矢'];
 
   const cv = document.getElementById('game');
-  const ctx = cv.getContext('2d');
+  let ctx = cv.getContext('2d');   // 見込みの小窓を描くときだけ一時的に差し替える
   const $ = id => document.getElementById(id);
   const steps = [...document.querySelectorAll('#hassetsu .step')];
   // 全日本弓道連盟『弓道教本 第一巻 射法篇』の射法八節の要旨を、ゲーム用に短く言い換えたもの
@@ -595,7 +595,7 @@ a.btn { text-decoration: none; display: inline-block; }
   }
 
   // ================= flow =================
-  function go(phase) { S.phase = phase; S.pt = 0; S.prog = 0; renderPrefs(); }
+  function go(phase) { S.phase = phase; S.pt = 0; S.prog = 0; renderPrefs(); if (C && C.online) sendLive(phase); }
   function startTachi() {
     C = null; MR = MATO_R; MTYPE = prefs.mato; S.myTx = 0; S.actor = null;
     if (!S.look) S.look = { hakama: '#1f2230', dogi: randDogi(), fe: randFeather(), kake: randKake(), gender: prefs.gender, muneate: randMuneate() };
@@ -775,7 +775,7 @@ a.btn { text-decoration: none; display: inline-block; }
   function nextTurn() {
     if (C.turn >= C.shooters.length) { endRound(); return; }
     const a = C.cur = C.shooters[C.turn];
-    S.actor = a; S.calloutShown = false; renderBoard();
+    S.actor = a; S.calloutShown = false; S.lv = null; S.lvTsuru = false; S.lvAim = null; renderBoard();
     callout(a.pos + '　' + a.name, (C.stage === 'izume' ? '射詰 ' : C.stage === 'kettei' ? '順位決定 ' : '遠近 ') + knum(C.round) + '射目' + (MR !== MATO_R ? '・八寸的' : ''), '', 1600);
     if (a.remote) {
       pose = C.firstShot ? P.ashi2 : P.taoshi; S.frozen = null;
@@ -793,9 +793,9 @@ a.btn { text-decoration: none; display: inline-block; }
   // 射詰は各自の的、遠近競射（順位決定を含む）は全員が一つの的を射る
   function targetX(a) { return C && C.stage === 'izume' ? a.tx : 0; }
   function arrowLabel(a) { return C.stage === 'izume' ? C.round + '射目' : a.name; }
-  function aiLoose() {
+  function aiLoose(noSound) {
     const a = C.cur;
-    tsurune();
+    if (!noSound) tsurune();
     if (a.remote && a.shot.ground) {
       a.rec[C.round - 1] = { hit: false, r: Infinity, small: MR < MATO_R };
       S.aiShot = { hit: false, label: '引き不足', sub: a.name + '　会に入る前に離れ、矢は矢道に落ちました' };
@@ -1051,7 +1051,7 @@ a.btn { text-decoration: none; display: inline-block; }
     OL.room = v; OL.players = v.players || {};
     const g = v.game;
     if (g && g.id !== OL.gid && g.id !== OL.seenGid && Array.isArray(g.order) && g.order.includes(OL.uid)) startOnlineMatch(g);
-    if (g && g.id === OL.gid) { OL.shots = (v.shots && v.shots['g' + g.id]) || {}; OL.gate = g.gate || 0; OL.back = !!g.back; onlineTick(); gateUI(); matchUI(); }
+    if (g && g.id === OL.gid) { OL.shots = (v.shots && v.shots['g' + g.id]) || {}; OL.live = v.live || {}; OL.gate = g.gate || 0; OL.back = !!g.back; onlineTick(); gateUI(); matchUI(); }
     if (!$('lobbyPanel').hidden) renderLobby();
   }
   function showLobby() {
@@ -1145,9 +1145,34 @@ a.btn { text-decoration: none; display: inline-block; }
     }).catch(() => ref.set(mine));
   }
   // 相手の番：その人の一射が届いたら、横からの視点で再生する
+  // 自分の番：動作が変わるたびと、引分け・会の狙いを部屋に送る（ほかの人の画面がそれに合わせて動く）
+  const LIVE_PH = new Set(['tp-prep', 'tp-ready', 'tp-uchi', 'tp-daisan', 'tp-back', 'fp-hiki', 'fp-kai', 'fp-flight']);
+  function sendLive(phase) {
+    if (!OL.ref || !C.cur || C.cur.ai || !LIVE_PH.has(phase)) return;
+    OL.liveN = (OL.liveN || 0) + 1; OL.aimAcc = 1;
+    OL.ref.child('live/' + OL.uid).set({ g: OL.gid, r: C.round, ph: phase, first: S.seq === SEQ_FIRST, fast: !!prefs.fast, at: olNow(), n: OL.liveN });
+  }
+  function sendAim(dt) {
+    if (!C || !C.online || !OL.ref || !C.cur || C.cur.ai || (S.phase !== 'fp-hiki' && S.phase !== 'fp-kai')) return;
+    OL.aimAcc = (OL.aimAcc || 0) + dt;
+    if (OL.aimAcc < 0.2) return;
+    OL.aimAcc = 0;
+    const sw = sway(S.t);
+    OL.ref.child('live/' + OL.uid + '/a').set({ x: +(S.aimX + sw.x).toFixed(4), y: +(S.aimY + sw.y).toFixed(4) });
+  }
+  // 相手の番：相手の動作に合わせて横からの射手を動かす。一射が届いたら離れ〜的の寄りへ
+  function applyLive(lv) {
+    if (S.lv && S.lv.n === lv.n) { S.lv.a = lv.a; return; }
+    const was = S.phase;
+    S.lv = Object.assign({}, lv, { fromPose: pose });
+    if (lv.ph === 'fp-flight' && !S.lvTsuru) { S.lvTsuru = true; tsurune(); }
+    if (was !== 'ol-live') { hideCallout(); S.phase = 'ol-live'; S.pt = 0; }
+  }
   function onlineTick() {
-    if (!C || !C.online || S.phase !== 'online-wait' || !C.cur || !C.cur.remote) return;
+    if (!C || !C.online || (S.phase !== 'online-wait' && S.phase !== 'ol-live') || !C.cur || !C.cur.remote) return;
     const a = C.cur, key = 'r' + C.round, s = OL.shots[key] && OL.shots[key][a.uid];
+    const lv = OL.live && OL.live[a.uid];
+    if (!s && lv && lv.g === OL.gid && lv.r === C.round && OL.players[a.uid]) { applyLive(lv); delete OL.goneSince[a.uid]; return; }
     if (!s) {
       if (OL.players[a.uid]) { delete OL.goneSince[a.uid]; return; }
       // 部屋から消えた。少し待っても戻らなければ「外れ」として書き込む（全員が同じ記録を使う）
@@ -1164,6 +1189,10 @@ a.btn { text-decoration: none; display: inline-block; }
     }
     a.gone = false;
     a.shot = s; S.calloutShown = false;
+    if (S.phase === 'ol-live') {   // 見ていた一射が離れた
+      aiLoose(S.lvTsuru); if (!S.lvTsuru) { S.lvTsuru = true; tsurune(); }
+      pose = P.zanshin; go('ai-hanare'); S.pt = 0.4; return;
+    }
     pose = C.firstShot ? P.ashi2 : P.taoshi;
     S.aiKai = 2 + Math.random() * 1.6; S.frozen = { x: 0, y: 0 };
     go('ai-prep');
@@ -1310,6 +1339,7 @@ a.btn { text-decoration: none; display: inline-block; }
   function update(dt) {
     S.t += dt; S.pt += dt * (prefs.fast && FAST.has(S.phase) ? 3 : 1);
     S.fade = Math.max(0, S.fade - dt * 3.5);
+    sendAim(dt);
     if (S.phase === 'fp-hiki' || S.phase === 'fp-kai') {
       const sp = dt * 0.25;
       if (S.keys.ArrowLeft) S.aimX -= sp; if (S.keys.ArrowRight) S.aimX += sp;
@@ -1341,6 +1371,27 @@ a.btn { text-decoration: none; display: inline-block; }
       case 'ai-daisan': setStep(4, '大三　押大目引三分一'); pose = mix(P.uchi, P.daisan, ease(Math.min(1, S.pt / 1.3))); if (S.pt >= 1.3) go('ai-hiki'); break;
       case 'ai-hiki': setStep(4, '矢束いっぱいまで'); pose = mix(P.daisan, P.kai, ease(Math.min(1, S.pt / 2.0))); if (S.pt >= 2.0) go('ai-kai'); break;
       case 'ai-kai': setStep(5, '伸合い'); pose = P.kai; if (S.pt >= S.aiKai) { aiLoose(); go('ai-hanare'); } break;
+      case 'ol-live': {
+        const lv = S.lv; if (!lv) break;
+        const e = Math.max(0, (olNow() - lv.at) / 1000) * (lv.fast && FAST.has(lv.ph) ? 3 : 1);
+        switch (lv.ph) {
+          case 'tp-prep': {
+            let t = e, done = true;
+            for (const g of (lv.first ? SEQ_FIRST : SEQ_NEXT)) { if (t < g.d) { setStep(g.st, g.sub); pose = mix(P[g.a], P[g.b], ease(t / g.d)); done = false; break; } t -= g.d; }
+            if (done) { pose = P.kamae; setStep(2, '弓構え'); }
+            break;
+          }
+          case 'tp-ready': pose = P.kamae; setStep(2, '弓構え'); break;
+          case 'tp-uchi': setStep(3, '額よりやや上、約四十五度'); pose = mix(P.kamae, P.uchi, ease(Math.min(1, e / 2.2))); break;
+          case 'tp-daisan': setStep(4, '大三　押大目引三分一'); pose = mix(P.uchi, P.daisan, ease(Math.min(1, e / 1.8))); break;
+          case 'tp-back': setStep(2, 'やり直し'); pose = mix(lv.fromPose || P.daisan, P.kamae, ease(Math.min(1, e / 0.9))); break;
+          case 'fp-hiki': setStep(4, '矢束いっぱいまで'); pose = mix(P.daisan, P.kai, ease(Math.min(1, e / 2.2))); break;
+          case 'fp-kai': setStep(5, '伸合い'); pose = P.kai; break;
+          case 'fp-flight': setStep(6, '弓返り'); pose = mix(P.kai, P.zanshin, Math.min(1, e / 0.15)); break;
+        }
+        if (lv.a) { const k = Math.min(1, dt * 8); S.lvAim = S.lvAim ? { x: S.lvAim.x + (lv.a.x - S.lvAim.x) * k, y: S.lvAim.y + (lv.a.y - S.lvAim.y) * k } : { x: lv.a.x, y: lv.a.y }; }
+        break;
+      }
       case 'ai-hanare': {
         setStep(S.pt < 0.5 ? 6 : 7, S.pt < 0.5 ? '弓返り' : '矢の行方を見定める'); pose = S.pt < 0.15 ? mix(P.kai, P.zanshin, S.pt / 0.15) : P.zanshin;
         if (S.pt >= 1.4) { S.focusTx = targetX(C.cur); go('ai-closeup'); S.fade = 1; }
@@ -1914,11 +1965,42 @@ a.btn { text-decoration: none; display: inline-block; }
   }
 
   // ================= main render =================
+  // 相手の会を、その人の目線で小さく見せる（見込みの小窓）。的が見やすいよう実寸より拡大している
+  let miniCv = null;
+  function drawMikomi() {
+    const lv = S.lv; if (!lv || (lv.ph !== 'fp-hiki' && lv.ph !== 'fp-kai') || !C || !C.cur) return;
+    // 相手の目線の画面をこちらと同じ縮尺で裏に描き、的のまわりだけを切り出して拡大する
+    if (!miniCv) miniCv = document.createElement('canvas');
+    if (miniCv.width !== cv.width || miniCv.height !== cv.height) { miniCv.width = cv.width; miniCv.height = cv.height; }
+    const m = miniCv.getContext('2d');
+    const e = Math.max(0, (olNow() - lv.at) / 1000);
+    const k = lv.ph === 'fp-hiki' ? ease(Math.min(1, e / 2.2)) : 1;
+    const aim = S.lvAim || { x: 0, y: 0 };
+    const sv = [ctx, ZOOM];
+    ctx = m; ZOOM = 1;
+    try {
+      m.setTransform(DPR, 0, 0, DPR, 0, 0); m.clearRect(0, 0, W, H);
+      drawWorld(makeProj(aim.x + targetX(C.cur), aim.y));
+      drawFPBow(-(1 - k) * H * 0.55, 1, 0.25 + 0.75 * k);
+    } finally { [ctx, ZOOM] = sv; }
+    const { Ax, Ay } = fpAnchor();
+    const mw = Math.round(clamp(W * 0.34, 170, 300)), mh = Math.round(mw * 0.8);
+    const cw = Math.max(F * 0.72 / DIST * 5.5, 110), ch = cw * mh / mw;     // 的の直径の約5.5倍の範囲を切り出す
+    const x0 = W - mw - 14, y0 = 14;
+    ctx.save();
+    ctx.fillStyle = 'rgba(27,22,18,.85)'; ctx.fillRect(x0 - 3, y0 - 3, mw + 6, mh + 30);
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(miniCv, (Ax - cw / 2) * DPR, (Ay - ch / 2) * DPR, cw * DPR, ch * DPR, x0, y0, mw, mh);
+    ctx.font = '700 13px ' + DFONT; ctx.fillStyle = '#f3eee2'; ctx.textAlign = 'center';
+    ctx.fillText(C.cur.name + ' さんの見込み' + (lv.ph === 'fp-kai' ? '（会）' : ''), x0 + mw / 2, y0 + mh + 19);
+    ctx.restore();
+  }
   function draw() {
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     ctx.clearRect(0, 0, W, H);
     const fp = S.phase.startsWith('fp') || S.phase === 'closeup' || S.phase === 'ai-closeup';
     if (fp) drawFP(); else drawTP();
+    if (S.phase === 'ol-live') drawMikomi();
     if (S.fade > 0) { ctx.fillStyle = 'rgba(20,14,10,' + S.fade + ')'; ctx.fillRect(0, 0, W, H); }
   }
 
