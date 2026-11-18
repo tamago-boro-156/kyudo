@@ -1019,7 +1019,7 @@ a.btn { text-decoration: none; display: inline-block; }
       OL.joinedAt = olNow();
       OL.connCb = s => { if (s.val() && OL.ref) { OL.ref.child('players/' + OL.uid).onDisconnect().remove(); beat(); } };
       OL.connRef.on('value', OL.connCb);
-      clearInterval(OL.beatT); OL.beatT = setInterval(beat, 15000);
+      clearInterval(OL.beatT); OL.beatT = setInterval(beat, 10000);
       if (!Object.keys(ps).length) ref.child('settings').set({ mode: prefs.olMode || 'izume', mato: prefs.mato });
       ref.on('value', OL.roomCb = s => onRoom(s.val() || {}));
       $('intro').hidden = true; showLobby();
@@ -1034,13 +1034,16 @@ a.btn { text-decoration: none; display: inline-block; }
   function leaveRoom() {
     if (!OL.ref) return;
     clearInterval(OL.beatT);
-    try { OL.ref.off('value', OL.roomCb); OL.connRef.off('value', OL.connCb); OL.ref.child('players/' + OL.uid).onDisconnect().cancel(); OL.ref.child('players/' + OL.uid).remove(); } catch (e) {}
+    try { OL.ref.off('value', OL.roomCb); OL.connRef.off('value', OL.connCb); OL.ref.child('players/' + OL.uid).onDisconnect().cancel();
+      // 最後の一人が出るときは部屋ごと消して、まっさらに戻す
+      if (lobbyPlayers().some(p => p.uid !== OL.uid)) OL.ref.child('players/' + OL.uid).remove(); else OL.ref.remove();
+    } catch (e) {}
     OL.ref = null; OL.gid = null; OL.players = {}; resetGateUI();
     $('lobbyPanel').hidden = true;
   }
-  // 在室の合図：15秒ごとに時刻を書き込む。90秒途絶えた人は在室に数えない
+  // 在室の合図：10秒ごとに時刻を書き込む。40秒途絶えた人は在室に数えない
   const olNow = () => Date.now() + (OL.skew || 0);
-  const fresh = p => p && olNow() - (p.seen || p.at || 0) < 90000;
+  const fresh = p => p && olNow() - (p.seen || p.at || 0) < 40000;
   function beat() { if (OL.ref && OL.me) OL.ref.child('players/' + OL.uid).set({ name: OL.me.name, look: OL.me.look, at: OL.joinedAt, seen: olNow() }); }
   document.addEventListener('visibilitychange', () => { if (!document.hidden) beat(); });
   function lobbyPlayers() {
