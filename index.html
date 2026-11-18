@@ -166,6 +166,8 @@ body { background: var(--wood); color: var(--paper); font-family: var(--ui); ove
 .panel details .sub { margin-top: 8px; }
 .btnrow { display: flex; gap: 10px; flex-wrap: wrap; }
 .btn.ghost { background: transparent; color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+.btn.xbtn { background: #111; }
+a.btn { text-decoration: none; display: inline-block; }
 .btn.ghost:hover { background: #e9e2d2; }
 .rtable { width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
 .rtable, .rtable td, .rtable th { color: var(--ink); font-family: var(--ui); }
@@ -314,7 +316,7 @@ body { background: var(--wood); color: var(--paper); font-family: var(--ui); ove
     <h2 id="resTitle">三中</h2>
     <div class="result-marks" id="resMarks"></div>
     <p class="sub" id="resSub"></p>
-    <div class="btnrow"><button class="btn" id="nextBtn">次の立ち</button><button class="btn ghost setupBtn" type="button">種目を選ぶ</button></div>
+    <div class="btnrow"><button class="btn" id="nextBtn">次の立ち</button><button class="btn xbtn shareBtn" type="button">𝕏 で結果をシェア</button><button class="btn ghost setupBtn" type="button">種目を選ぶ</button></div>
   </div>
 </div>
 
@@ -344,7 +346,21 @@ body { background: var(--wood); color: var(--paper); font-family: var(--ui); ove
     <h2 id="matchTitle"></h2>
     <p class="sub" id="matchSub"></p>
     <table class="rtable" id="matchTable"></table>
-    <div class="btnrow"><button class="btn" id="againBtn">もう一度</button><button class="btn ghost setupBtn" type="button">種目を選ぶ</button></div>
+    <div class="btnrow"><button class="btn" id="againBtn">もう一度</button><button class="btn xbtn shareBtn" type="button">𝕏 で結果をシェア</button><button class="btn ghost setupBtn" type="button">種目を選ぶ</button></div>
+  </div>
+</div>
+
+<div class="overlay" id="sharePanel" hidden>
+  <div class="panel">
+    <h2>結果をシェア</h2>
+    <img id="cardImg" alt="的と結果の画像" style="width:100%;max-height:52vh;object-fit:contain;border:1px solid #c9bfa8;background:#f3eee2">
+    <p class="sub" id="shareHow"></p>
+    <div class="btnrow">
+      <button class="btn xbtn" id="nativeShare" type="button" hidden>画像つきで投稿</button>
+      <a class="btn" id="cardSave" download="isshanyukon.png" href="#">画像を保存</a>
+      <a class="btn xbtn" id="cardX" href="https://x.com/intent/post" target="_blank" rel="noopener">𝕏 を開く</a>
+      <button class="btn ghost" id="shareClose" type="button">閉じる</button>
+    </div>
   </div>
 </div>
 
@@ -893,6 +909,85 @@ body { background: var(--wood); color: var(--paper); font-family: var(--ui); ove
     pose = P.taoshi; S.actor = null; go('match-wait'); setStep(-1);
     $('matchPanel').hidden = false; $('againBtn').focus();
   }
+
+  // ================= share card (的 + 結果) =================
+  const GAME_URL = 'https://tamago-boro-156.github.io/kyudo/';
+  function plainRec(a) {
+    return a.rec.map((r, i) => !r ? '' : (C.stage === 'enkin' || (C.enkinFrom && i + 1 >= C.enkinFrom)) ? (r.hit ? (r.r * 100).toFixed(1) + 'cm ' : '× ') : (r.hit ? (r.small ? '◎' : '○') : '×')).join('').trim();
+  }
+  function shareInfo() {
+    if (C && C.archers.some(a => a.rank)) {
+      const me = C.archers.find(a => !a.ai), mode = C.mode === 'izume' ? '射詰競射' : '遠近競射';
+      const place = me.rank === 1 ? '優勝' : knum(me.rank) + '位';
+      return { big: place, line1: mode + '・' + C.archers.length + '人立ち', line2: '相手の強さ ' + LEVELS[prefs.level].name, line3: '記録 ' + (plainRec(me) || '—'),
+        text: '【一射入魂】' + mode + '（' + C.archers.length + '人立ち・相手の強さ' + LEVELS[prefs.level].name + '）で' + place + (me.rank === 1 ? '！' : '。') + '\n記録 ' + (plainRec(me) || '—') };
+    }
+    const n = S.results.filter(Boolean).length, marks = S.results.map(r => r ? '○' : '×').join('');
+    const big = n === 4 ? '皆中' : n === 0 ? '残念' : KANJI_NUM[n] + '中';
+    return { big, line1: '稽古・' + (MTYPE === 'kasumi' ? '霞的' : '星的'), line2: '四射' + KANJI_NUM[n] + '中', line3: marks,
+      text: '【一射入魂】稽古で四射' + KANJI_NUM[n] + '中（' + marks + '）' + (n === 4 ? '　皆中！' : '') };
+  }
+  function makeCard() {
+    const c = document.createElement('canvas'); c.width = 1080; c.height = 1080; const g = c.getContext('2d');
+    g.fillStyle = '#f3eee2'; g.fillRect(0, 0, 1080, 1080);
+    g.fillStyle = '#2a1d14'; g.fillRect(0, 0, 1080, 120); g.fillRect(0, 1020, 1080, 60);
+    g.fillStyle = '#f3eee2'; g.font = '800 64px "Shippori Mincho", serif'; g.textBaseline = 'middle'; g.textAlign = 'left'; g.fillText('一射入魂', 50, 62);
+    g.font = '700 28px "Zen Kaku Gothic New", sans-serif'; g.fillStyle = '#c9a45c'; g.fillText('― 一射ずつ丁寧に', 340, 66);
+    // the mato, with the arrows as they landed (seen from behind)
+    const cx = 370, cy = 570, R = 270, k = R / MR;
+    // the 安土 (sand bank) behind the mato; misses show in the sand, anything farther is cut off
+    g.save(); g.beginPath(); g.rect(40, 160, 640, 820); g.clip();
+    const sand = g.createLinearGradient(0, 160, 0, 980); sand.addColorStop(0, '#c9b28a'); sand.addColorStop(1, '#dccaa6'); g.fillStyle = sand; g.fillRect(40, 160, 640, 820);
+    g.fillStyle = 'rgba(70,50,30,.18)'; g.beginPath(); g.arc(cx + 14, cy + 16, R * 1.05, 0, 7); g.fill();
+    g.fillStyle = '#8a6a45'; g.beginPath(); g.arc(cx, cy, R * 1.04, 0, 7); g.fill();
+    const rings = MTYPE === 'kasumi' ? KASUMI : HOSHI;
+    for (let i = rings.length - 1; i >= 0; i--) { g.fillStyle = rings[i].c === 'w' ? WHITE : BLACK; g.beginPath(); g.arc(cx, cy, R * rings[i].r / MATO_R, 0, 7); g.fill(); }
+    const mine = S.stuck.filter(a => C && C.stage === 'izume' ? a.tx === 0 : true);
+    mine.forEach(a => {
+      const x = cx + a.x * k, y = cy - a.y * k; if (Math.hypot(x - cx, y - cy) > R * 1.6) return;
+      const r = 9, fl = 34, fw = 9, fc = (a.fe || FEATHERS[0]).c, dir = a.ya % 2 === 0 ? 1 : -1;
+      g.save(); g.translate(x, y);
+      for (let q = 0; q < 3; q++) { g.save(); g.rotate(-Math.PI / 2 + q * Math.PI * 2 / 3); g.fillStyle = fc[0];
+        g.beginPath(); g.moveTo(r, -fw * 0.4); g.quadraticCurveTo(r + fl * 0.5, -fw * 0.5 + dir * fw * 1.6, r + fl, dir * fw * 0.6); g.lineTo(r + fl, dir * fw * 0.6 + fw * 0.4); g.quadraticCurveTo(r + fl * 0.5, fw * 0.5 + dir * fw * 1.6, r, fw * 0.4); g.closePath(); g.fill();
+        g.strokeStyle = fc[1] === fc[0] ? (fc[0] === FB ? 'rgba(200,190,170,.8)' : 'rgba(60,45,30,.6)') : fc[1]; g.lineWidth = fc[1] === fc[0] ? 1.5 : 3; g.stroke(); g.restore(); }
+      g.fillStyle = '#2a1e16'; g.beginPath(); g.arc(0, 0, r, 0, 7); g.fill(); g.fillStyle = '#c54a35'; g.beginPath(); g.arc(0, 0, r * 0.45, 0, 7); g.fill();
+      g.restore();
+      if (C && C.stage !== 'izume' && a.label && false) { g.font = '700 22px "Zen Kaku Gothic New", sans-serif'; g.textAlign = 'left'; const tw = g.measureText(a.label).width; g.fillStyle = 'rgba(42,29,20,.85)'; g.fillRect(x + 22, y - 40, tw + 14, 30); g.fillStyle = '#f3eee2'; g.fillText(a.label, x + 29, y - 25); }
+    });
+    g.restore();
+    // names beside the arrows (遠近競射)
+    if (C && C.stage !== 'izume') mine.forEach(a => { const x = cx + a.x * k, y = cy - a.y * k; if (x < 40 || x > 640 || y < 190 || y > 970) return; g.font = '700 22px "Zen Kaku Gothic New", sans-serif'; g.textAlign = 'left'; const tw = g.measureText(a.label).width; g.fillStyle = 'rgba(42,29,20,.85)'; g.fillRect(x + 22, y - 40, tw + 14, 30); g.fillStyle = '#f3eee2'; g.fillText(a.label, x + 29, y - 25); });
+    // the result
+    const info = shareInfo();
+    g.textAlign = 'left'; g.fillStyle = '#1b1612';
+    g.font = '800 132px "Shippori Mincho", serif'; g.fillText(info.big, 720, 340);
+    g.fillStyle = '#b8432f'; g.fillRect(722, 410, 300, 4);
+    g.fillStyle = '#1b1612'; g.font = '700 34px "Zen Kaku Gothic New", sans-serif';
+    [info.line1, info.line2].forEach((t, i) => g.fillText(t, 722, 470 + i * 56));
+    g.font = '800 54px "Shippori Mincho", serif'; g.fillStyle = '#1b1612';
+    let fs = 54; while (g.measureText(info.line3).width > 330 && fs > 26) { fs -= 2; g.font = '800 ' + fs + 'px "Shippori Mincho", serif'; }
+    g.fillText(info.line3, 722, 640);
+    g.fillStyle = '#f3eee2'; g.font = '700 26px "Zen Kaku Gothic New", sans-serif'; g.textAlign = 'center'; g.fillText(GAME_URL.replace('https://', ''), 540, 1050);
+    return c;
+  }
+  let shareFile = null;
+  async function openShare() {
+    try { await document.fonts.ready; } catch (e) {}
+    const c = makeCard(), info = shareInfo();
+    const text = info.text + '\n#弓道 #一射入魂';
+    const url = c.toDataURL('image/png');
+    $('cardImg').src = url; $('cardSave').href = url;
+    $('cardX').href = 'https://x.com/intent/post?text=' + encodeURIComponent(text) + '&url=' + encodeURIComponent(GAME_URL);
+    shareFile = null;
+    const blob = await new Promise(r => c.toBlob(r, 'image/png'));
+    try { const f = new File([blob], 'isshanyukon.png', { type: 'image/png' }); if (navigator.canShare && navigator.canShare({ files: [f] })) shareFile = { f, text: text + '\n' + GAME_URL }; } catch (e) {}
+    $('nativeShare').hidden = !shareFile;
+    $('shareHow').textContent = shareFile ? '「画像つきで投稿」から X を選ぶと、この画像と文がそのまま入ります。' : '画像を保存してから「𝕏 を開く」を押し、投稿画面で保存した画像を添付してください。';
+    $('sharePanel').hidden = false;
+  }
+  document.querySelectorAll('.shareBtn').forEach(b => b.addEventListener('click', openShare));
+  $('nativeShare').addEventListener('click', () => { if (shareFile) navigator.share({ files: [shareFile.f], text: shareFile.text }).catch(() => {}); });
+  $('shareClose').addEventListener('click', () => { $('sharePanel').hidden = true; });
 
   // ================= input =================
   cv.addEventListener('pointerdown', e => {
