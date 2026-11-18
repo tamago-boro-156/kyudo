@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="description" content="一射ずつ丁寧に。射法八節をたどり、28m先の的を実寸で狙う弓道ゲーム。稽古のほか、AI相手の射詰競射・遠近競射も遊べる。">
+<meta name="description" content="一射ずつ丁寧に。射法八節をたどり、28m先の的を実寸で狙う弓道ゲーム。稽古のほか、AI相手や合言葉のオンライン対戦で射詰競射・遠近競射も遊べる。">
 <meta property="og:title" content="一射入魂 ― 一射ずつ丁寧に">
 <meta property="og:description" content="射法八節をたどり、28m先の的を実寸で狙う弓道ゲーム。">
 <meta property="og:url" content="https://tamago-boro-156.github.io/kyudo/">
@@ -154,7 +154,10 @@ body { background: var(--wood); color: var(--paper); font-family: var(--ui); ove
 .flabel { font-size: 12px; font-weight: 700; letter-spacing: .14em; color: var(--sumi); }
 .frow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .frow .flabel { min-width: 6.5em; }
-.modes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.modes { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.tin { font: inherit; font-size: 16px; padding: 6px 10px; border: 1px solid #b9ad97; background: #fbf8f1; color: var(--ink); min-width: 0; flex: 1; max-width: 14em; border-radius: 0; }
+.tin:focus-visible { outline: 3px solid var(--gold); outline-offset: 1px; }
+.olnote a { color: var(--shu); }
 .choice.mode { grid-template-columns: 1fr; align-items: start; }
 .pseg { display: flex; flex-wrap: wrap; }
 .pseg button { font-family: var(--ui); font-size: 13px; color: var(--ink); background: transparent; border: 1px solid #b9ad97; padding: 6px 12px; cursor: pointer; }
@@ -267,6 +270,7 @@ a.btn { text-decoration: none; display: inline-block; }
         <button class="choice mode" id="modePractice" type="button"><span><b>稽古</b><small>一立ち四射。自分のペースで射る</small></span></button>
         <button class="choice mode" id="modeIzume" type="button"><span><b>射詰競射</b><small>一本ずつ射て、外した者から抜ける。最後の一人が優勝</small></span></button>
         <button class="choice mode" id="modeEnkin" type="button"><span><b>遠近競射</b><small>一本ずつ射て、的の中心に近い順に順位が決まる</small></span></button>
+        <button class="choice mode" id="modeOnline" type="button"><span><b>オンライン対戦</b><small>合言葉で部屋に集まり、友だちと射詰・遠近</small></span></button>
       </div>
     </div>
     <div class="field" id="compFields">
@@ -275,6 +279,11 @@ a.btn { text-decoration: none; display: inline-block; }
       <div class="frow"><div class="flabel">相手の強さ</div>
         <div class="pseg" id="lvSeg"><button type="button" data-v="easy">易しい</button><button type="button" data-v="normal">普通</button><button type="button" data-v="strong">強い</button><button type="button" data-v="oni">鬼</button></div></div>
       <p class="sub">射順は入場のときにくじで決まります。</p>
+    </div>
+    <div class="field" id="onlineFields" hidden>
+      <div class="frow"><div class="flabel">名前</div><input class="tin" id="olName" maxlength="8" placeholder="例：たまご" autocomplete="nickname"></div>
+      <div class="frow"><div class="flabel">合言葉</div><input class="tin" id="olCode" maxlength="16" placeholder="例：まつかぜ" autocomplete="off" autocapitalize="off"></div>
+      <p class="sub olnote" id="olNote">同じ合言葉を入れた人どうしが、同じ部屋に入ります（最大5人）。最初に入った人が主催になり、種目と的を決めます。</p>
     </div>
     <div class="field">
       <div class="frow"><div class="flabel">あなたの射手</div>
@@ -317,6 +326,20 @@ a.btn { text-decoration: none; display: inline-block; }
     <div class="result-marks" id="resMarks"></div>
     <p class="sub" id="resSub"></p>
     <div class="btnrow"><button class="btn" id="nextBtn">次の立ち</button><button class="btn xbtn shareBtn" type="button">𝕏 で結果をシェア</button><button class="btn ghost setupBtn" type="button">種目を選ぶ</button></div>
+  </div>
+</div>
+
+<div class="overlay" id="lobbyPanel" hidden>
+  <div class="panel">
+    <div class="seal">道場</div>
+    <h2 id="lobbyTitle">合言葉</h2>
+    <table class="rtable" id="lobbyTable"></table>
+    <div class="field" id="lobbyHost">
+      <div class="frow"><div class="flabel">種目</div><div class="pseg" id="olModeSeg"><button type="button" data-v="izume">射詰競射</button><button type="button" data-v="enkin">遠近競射</button></div></div>
+      <div class="frow"><div class="flabel">的</div><div class="pseg" id="olMatoSeg"><button type="button" data-v="kasumi">霞的</button><button type="button" data-v="hoshi">星的</button></div></div>
+    </div>
+    <p class="sub" id="lobbyMsg"></p>
+    <div class="btnrow"><button class="btn" id="lobbyStart" type="button">始める</button><button class="btn ghost" id="lobbyLeave" type="button">退出</button></div>
   </div>
 </div>
 
@@ -506,7 +529,12 @@ a.btn { text-decoration: none; display: inline-block; }
     $('modePractice').setAttribute('aria-pressed', prefs.mode === 'practice');
     $('modeIzume').setAttribute('aria-pressed', prefs.mode === 'izume');
     $('modeEnkin').setAttribute('aria-pressed', prefs.mode === 'enkin');
-    $('compFields').hidden = prefs.mode === 'practice';
+    $('modeOnline').setAttribute('aria-pressed', prefs.mode === 'online');
+    $('compFields').hidden = prefs.mode === 'practice' || prefs.mode === 'online';
+    $('onlineFields').hidden = prefs.mode !== 'online';
+    $('startBtn').textContent = prefs.mode === 'online' ? '入室' : '入場';
+    document.querySelectorAll('#olModeSeg button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === (prefs.olMode || 'izume')));
+    document.querySelectorAll('#olMatoSeg button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === prefs.mato));
     document.querySelectorAll('#oppSeg button').forEach(b => b.setAttribute('aria-pressed', +b.dataset.v === prefs.opp));
     document.querySelectorAll('#lvSeg button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === prefs.level));
     document.querySelectorAll('#genderSeg button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === prefs.gender));
@@ -652,6 +680,7 @@ a.btn { text-decoration: none; display: inline-block; }
     impact(d.hit);
     if (!d.ground) S.stuck.push({ x: d.x, y: d.y, ya: C ? C.round - 1 : S.shot, hit: d.hit, tx: S.myTx, label: C ? arrowLabel(C.cur) : YA[S.shot], fe: (C ? C.cur : S.look).fe });
     if (C) C.cur.rec[C.round - 1] = { hit: d.hit, r: d.ground ? Infinity : d.r, small: MR < MATO_R };
+    if (C && C.online) sendShot(d);
     S.results.push(d.hit);
     stats.total++; if (d.hit) stats.hits++;
     S.shot++;
@@ -706,11 +735,14 @@ a.btn { text-decoration: none; display: inline-block; }
     const archers = [{ name: 'あなた', ai: false, hakama: '#1f2230', dogi: randDogi(), fe: randFeather(), kake: randKake(), gender: prefs.gender, muneate: randMuneate() }]
       .concat(names.map((n, i) => ({ name: n, ai: true, sigma: lv.sigma * (0.9 + Math.random() * 0.2), hakama: AI_HAKAMA[i % 4], dogi: randDogi(), fe: randFeather(), kake: randKake(), gender: Math.random() < 0.5 ? 'm' : 'f', muneate: randMuneate() })));
     shuffle(archers);
+    setupMatch(archers, prefs.mode, prefs.mato, '相手の強さ：' + lv.name, false);
+  }
+  function setupMatch(archers, mode, mato, subNote, online) {
     const pn = posNames(archers.length);
     const me = archers.findIndex(a => !a.ai);
     archers.forEach((a, i) => { a.idx = i; a.pos = pn[i]; a.rec = []; a.alive = true; a.outRound = null; a.enkin = null; a.tx = (me - i) * 2; });
-    C = { mode: prefs.mode, stage: prefs.mode, archers, round: 0, pool: archers.slice(), turn: 0, shooters: [], cur: null, firstShot: true };
-    MR = MATO_R; MTYPE = prefs.mato; S.myTx = 0; S.stuck = []; S.results = []; S.shot = 0;
+    C = { mode, stage: mode, archers, round: 0, pool: archers.slice(), turn: 0, shooters: [], cur: null, firstShot: true, online, kLvl: 0 };
+    MR = MATO_R; MTYPE = mato; S.myTx = 0; S.stuck = []; S.results = []; S.shot = 0;
     $('result').hidden = true; $('boardCard').hidden = false; $('marksCard').hidden = true;
     pose = P.shitsu; S.actor = null; go('match-wait'); setStep(-1); renderBoard(); renderPrefs();
     const title = C.mode === 'izume' ? '射詰競射' : '遠近競射';
@@ -718,7 +750,7 @@ a.btn { text-decoration: none; display: inline-block; }
     $('orderSub').textContent = (C.mode === 'izume'
       ? '一人一本ずつ射て、外した者から抜けていきます。全員が外した回は全員が残ります。' + knum(HACHISUN_FROM) + '射目からは八寸的（直径24cm）で、中りは◎で記録します。' + knum(IZUME_MAX) + '射で決まらなければ遠近競射で決着をつけます。'
       : '一人一本ずつ射て、的の中心に近い順に順位が決まります。外れた矢は中った矢より下位で、外れ同士は同順位。全員が外したときは射直します。')
-      + '　相手の強さ：' + lv.name;
+      + '　' + subNote;
     $('orderTable').innerHTML = '<tr><th>射順</th><th>射手</th></tr>' + archers.map(a => '<tr class="' + (a.ai ? '' : 'me') + '"><td class="mk">' + a.pos + '</td><td>' + a.name + '</td></tr>').join('');
     S.look = archers.find(a => !a.ai); TPL = null;
     $('orderPanel').hidden = false; $('orderBtn').focus();
@@ -728,6 +760,7 @@ a.btn { text-decoration: none; display: inline-block; }
     C.round++;
     if (C.stage === 'izume' && C.round === HACHISUN_FROM && MR === MATO_R) { MR = 0.12; MTYPE = 'hoshi'; S.stuck = []; }
     C.shooters = C.archers.filter(a => C.stage === 'izume' ? a.alive : C.pool.includes(a));
+    if (C.online && C.shooters.every(a => a.gone)) { C.round--; C.tieResolved = true; finishMatch(); return; }
     if (C.stage !== 'izume') S.stuck = [];   // 遠近競射は一つの的で。射直しのたびに矢を抜く
     C.turn = 0; renderBoard();
     nextTurn();
@@ -738,7 +771,10 @@ a.btn { text-decoration: none; display: inline-block; }
     const a = C.cur = C.shooters[C.turn];
     S.actor = a; S.calloutShown = false; renderBoard();
     callout(a.pos + '　' + a.name, (C.stage === 'izume' ? '射詰 ' : C.stage === 'kettei' ? '順位決定 ' : '遠近 ') + knum(C.round) + '射目' + (MR !== MATO_R ? '・八寸的' : ''), '', 1600);
-    if (a.ai) {
+    if (a.remote) {
+      pose = C.firstShot ? P.ashi2 : P.taoshi; S.frozen = null;
+      go('online-wait'); onlineTick();
+    } else if (a.ai) {
       pose = C.firstShot ? P.ashi2 : P.taoshi;
       S.aiKai = 2 + Math.random() * 1.6; S.frozen = { x: 0, y: 0 };
       go('ai-prep');
@@ -754,8 +790,13 @@ a.btn { text-decoration: none; display: inline-block; }
   function aiLoose() {
     const a = C.cur;
     tsurune();
-    const x = normal() * a.sigma, y = normal() * a.sigma;
-    const r = Math.hypot(x, y), hit = r <= MR;
+    if (a.remote && a.shot.ground) {
+      a.rec[C.round - 1] = { hit: false, r: Infinity, small: MR < MATO_R };
+      S.aiShot = { hit: false, label: '引き不足', sub: a.name + '　会に入る前に離れ、矢は矢道に落ちました' };
+      return;
+    }
+    const x = a.remote ? a.shot.x : normal() * a.sigma, y = a.remote ? a.shot.y : normal() * a.sigma;
+    const r = Math.hypot(x, y), hit = a.remote ? !!a.shot.hit : r <= MR;
     a.rec[C.round - 1] = { hit, r, small: MR < MATO_R };
     S.stuck.push({ x, y, ya: C.round - 1, hit, tx: targetX(a), label: arrowLabel(a), fe: a.fe });
     const cm = r * 100;
@@ -793,7 +834,7 @@ a.btn { text-decoration: none; display: inline-block; }
       }
       const alive = C.archers.filter(a => a.alive);
       if (alive.length === 1) { finishMatch(); return; }
-      if (C.archers.some(a => !a.ai && !a.alive)) { settleRestSilently(); finishMatch(); return; }
+      if (!C.online && C.archers.some(a => !a.ai && !a.alive)) { settleRestSilently(); finishMatch(); return; }
       if (C.round >= IZUME_MAX) {
         C.stage = 'enkin'; C.pool = alive; C.enkinFrom = C.round + 1;
         msg += knum(IZUME_MAX) + '射で決まらなかったため、残る' + alive.length + '人で遠近競射を行います。';
@@ -802,17 +843,18 @@ a.btn { text-decoration: none; display: inline-block; }
       const hits = sh.filter(a => a.rec[rd] && a.rec[rd].hit);
       if (hits.length === 0) msg = '全員が外しました。同じ顔ぶれで射直します。';
       else {
-        hits.forEach(a => { a.kettei = a.rec[rd].r; });
+        hits.forEach(a => { a.kettei = C.kLvl * 0.2 + a.rec[rd].r; });
         const misses = sh.filter(a => !hits.includes(a));
-        if (misses.length > 1 && misses.some(a => !a.ai)) {
-          // あなたを含む外れ同士は、その顔ぶれでもう一度
-          misses.forEach((a, i) => { a.kettei = 0.3; });
+        if (misses.length > 1 && (C.online ? misses.some(a => !a.gone) : misses.some(a => !a.ai))) {
+          // あなたを含む外れ同士は、その顔ぶれでもう一度（後から中てても、先に中てた人より下位）
+          C.kLvl++;
           C.pool = misses;
           msg = hits.map(a => a.name).join('・') + ' の順位が決まりました。外れた ' + misses.map(a => a.name).join('・') + ' で射直します。';
         } else {
           // AI同士の外れは省略して順位をつける
-          shuffle(misses.slice()).forEach((a, i) => { a.kettei = 0.3 + i * 0.05; a.ketteiSim = misses.length > 1; });
-          C.tieResolved = true; finishMatch(); return;
+          shuffle(misses.slice()).forEach((a, i) => { a.kettei = C.kLvl * 0.2 + 0.19 + i * 0.001; a.ketteiSim = misses.length > 1; });
+          if (!C.online) C.tieResolved = true;
+          finishMatch(); return;
         }
       }
     } else {
@@ -868,13 +910,13 @@ a.btn { text-decoration: none; display: inline-block; }
       const groups = {};
       C.archers.filter(a => !a.alive).forEach(a => (groups[a.outRound] = groups[a.outRound] || []).push(a));
       let mine = null;
-      Object.values(groups).filter(g => g.length > 1).forEach(g => {
-        if (g.some(a => !a.ai)) { mine = g; return; }
+      Object.values(groups).filter(g => g.length > 1 && g.some(a => a.kettei == null)).forEach(g => {
+        if (C.online || g.some(a => !a.ai)) { if (!mine) mine = g; return; }
         const rs = shuffle(g.map((_, i) => 0.02 + i * 0.03));
         g.forEach((a, i) => { a.kettei = rs[i]; a.ketteiSim = true; });
       });
       if (mine) {
-        C.stage = 'kettei'; C.pool = mine; if (!C.enkinFrom) C.enkinFrom = C.round + 1;
+        C.stage = 'kettei'; C.pool = mine; C.kLvl = 0; if (!C.enkinFrom) C.enkinFrom = C.round + 1;
         renderBoard();
         $('roundSeal').textContent = '決定';
         $('roundTitle').textContent = '順位決定の遠近競射';
@@ -891,7 +933,7 @@ a.btn { text-decoration: none; display: inline-block; }
     // sort key: larger is better. 射詰 = the round an archer dropped out; 遠近 = closeness to the centre
     const key = a => {
       let k = 0;
-      if (C.mode === 'izume') k = a.alive ? 1000 : a.outRound + (a.kettei == null ? 0 : isFinite(a.kettei) ? 0.9 - a.kettei : 0);
+      if (C.mode === 'izume') k = a.alive ? 1000 : a.outRound + (a.kettei == null ? 0 : isFinite(a.kettei) ? 0.9 - a.kettei * 0.1 : 0);
       if (a.enkin !== null && a.enkin !== undefined) k += 2000 + (isFinite(a.enkin) ? 1000 - Math.round(a.enkin * 1000) : 0);
       return k;
     };
@@ -902,18 +944,173 @@ a.btn { text-decoration: none; display: inline-block; }
     const myShots = me.rec.filter(Boolean);
     $('matchSeal').textContent = me.rank === 1 ? '優勝' : knum(me.rank) + '位';
     $('matchTitle').textContent = me.rank === 1 ? (ranked.filter(a => a.rank === 1).length > 1 ? '一位（同率）' : '優勝') : knum(me.rank) + '位';
-    $('matchSub').textContent = (C.settledSilently ? 'あなたが抜けた時点で試合終了（残りの順位は省略して決定）・' : '') + (C.mode === 'izume' ? '射詰競射' : '遠近競射') + '・相手の強さ ' + LEVELS[prefs.level].name + '・' + C.archers.length + '人立ち　あなたの記録 ' + myShots.filter(r => r.hit).length + '中 / ' + myShots.length + '射';
+    $('matchSub').textContent = (C.settledSilently ? 'あなたが抜けた時点で試合終了（残りの順位は省略して決定）・' : '') + (C.mode === 'izume' ? '射詰競射' : '遠近競射') + '・' + oppText() + '・' + C.archers.length + '人立ち　あなたの記録 ' + myShots.filter(r => r.hit).length + '中 / ' + myShots.length + '射';
     $('matchTable').innerHTML = '<tr><th>順位</th><th>射順</th><th>射手</th><th>記録</th></tr>' + ranked.map(a =>
       '<tr class="' + (a.ai ? '' : 'me') + '"><td class="rank">' + knum(a.rank) + '</td><td class="mk">' + a.pos + '</td><td>' + a.name + '</td><td class="mk">' + (recText(a) || '—') + (a.ketteiSim ? ' <small>（順位決定は省略）</small>' : '') + '</td></tr>').join('');
     renderBoard();
     pose = P.taoshi; S.actor = null; go('match-wait'); setStep(-1);
     // 競技は結果だけを文でシェア（的の画像はなし）
     $('matchX').href = 'https://x.com/intent/post?text=' + encodeURIComponent(shareInfo().text + '\n#弓道 #一射入魂') + '&url=' + encodeURIComponent(GAME_URL);
+    $('againBtn').textContent = C.online ? '部屋に戻る' : 'もう一度';
     $('matchPanel').hidden = false; $('againBtn').focus();
+  }
+
+
+  // ================= online (Firebase Realtime Database) =================
+  // 合言葉 = rooms/{合言葉}。players に在室者、game に対戦の設定（射順・射手）、shots/{game}/r{射}/{uid} に一本ごとの結果。
+  // 各端末は同じ shots から同じ手順で勝敗を計算する（主催の端末が審判をするのではない）。
+  const FB_CONFIG = {
+    apiKey: 'AIzaSyA4dOE_YmHrE2N8l4IZSbu4CTpx8Pbokf0',
+    authDomain: 'kyudo-online.firebaseapp.com',
+    databaseURL: 'https://kyudo-online-default-rtdb.asia-southeast1.firebasedatabase.app',
+    projectId: 'kyudo-online',
+    storageBucket: 'kyudo-online.firebasestorage.app',
+    messagingSenderId: '393575279198',
+    appId: '1:393575279198:web:a5770fad668f63f94122cf'
+  };
+  const FB_VER = '10.12.2';
+  const ONLINE_OK = /(^|\.)github\.io$/.test(location.hostname) || !!window.__FB_MOCK;
+  const MAX_ROOM = 5, GONE_GRACE = 20000;
+  const OL = { db: null, uid: null, ref: null, code: '', codeRaw: '', players: {}, room: {}, gid: null, seenGid: null, shots: {}, goneSince: {} };
+  const cleanName = s => String(s || '').replace(/[<>&"'`\\]/g, '').trim().slice(0, 8) || '射手';
+  const roomKey = s => String(s || '').trim().replace(/[.#$\[\]\/\s]/g, '').slice(0, 16);
+  function loadScript(src) { return new Promise((res, rej) => { const e = document.createElement('script'); e.src = src; e.onload = res; e.onerror = rej; document.head.appendChild(e); }); }
+  async function fbInit() {
+    if (OL.db) return;
+    if (!window.firebase) for (const m of ['app', 'auth', 'database']) await loadScript('https://www.gstatic.com/firebasejs/' + FB_VER + '/firebase-' + m + '-compat.js');
+    if (!firebase.apps.length) firebase.initializeApp(FB_CONFIG);
+    const cred = await firebase.auth().signInAnonymously();
+    OL.uid = cred.user.uid; OL.db = firebase.database();
+  }
+  function olNote(html) { $('olNote').innerHTML = html; }
+  async function joinOnline() {
+    const name = cleanName($('olName').value), raw = $('olCode').value.trim(), code = roomKey(raw);
+    if (!$('olName').value.trim() || !code) { olNote('名前と合言葉を入れてください。'); return; }
+    prefs.olName = name; prefs.olCode = raw; save();
+    if (!ONLINE_OK) { olNote('オンライン対戦は公開ページ <a href="' + GAME_URL + '" target="_blank" rel="noopener">' + GAME_URL + '</a> で遊べます。この画面からは外部に接続できません。'); return; }
+    $('startBtn').disabled = true; olNote('接続しています…');
+    try {
+      await fbInit();
+      const ref = OL.db.ref('rooms/' + code);
+      const v = (await ref.get()).val() || {};
+      const ps = v.players || {};
+      if (!Object.keys(ps).length) await ref.set(null);               // 誰もいない古い部屋は片付けて使う
+      else if (!ps[OL.uid] && Object.keys(ps).length >= MAX_ROOM + 3) { olNote('この部屋は満員です。別の合言葉にしてください。'); $('startBtn').disabled = false; return; }
+      OL.ref = ref; OL.code = code; OL.codeRaw = raw; OL.name = name;
+      OL.seenGid = v.game ? v.game.id : null; OL.gid = null;
+      const f = randFeather();
+      OL.me = { name, look: { dogi: randDogi(), fe: FEATHERS.indexOf(f), kake: randKake(), gender: prefs.gender, muneate: randMuneate() } };
+      // 接続が切れたら在室から消える。つながり直したら入り直す
+      OL.connRef = OL.db.ref('.info/connected');
+      OL.connCb = s => { if (s.val() && OL.ref) { const me = OL.ref.child('players/' + OL.uid); me.onDisconnect().remove(); me.set({ name: OL.me.name, look: OL.me.look, at: OL.joinedAt || (OL.joinedAt = Date.now()) }); } };
+      OL.joinedAt = Date.now();
+      OL.connRef.on('value', OL.connCb);
+      if (!Object.keys(ps).length) ref.child('settings').set({ mode: prefs.olMode || 'izume', mato: prefs.mato });
+      ref.on('value', OL.roomCb = s => onRoom(s.val() || {}));
+      $('intro').hidden = true; showLobby();
+      olNote('同じ合言葉を入れた人どうしが、同じ部屋に入ります（最大5人）。最初に入った人が主催になり、種目と的を決めます。');
+    } catch (e) {
+      console.warn(e);
+      olNote('接続できませんでした。通信の状態を確かめて、もう一度お試しください。');
+    }
+    $('startBtn').disabled = false;
+  }
+  function leaveRoom() {
+    if (!OL.ref) return;
+    try { OL.ref.off('value', OL.roomCb); OL.connRef.off('value', OL.connCb); OL.ref.child('players/' + OL.uid).onDisconnect().cancel(); OL.ref.child('players/' + OL.uid).remove(); } catch (e) {}
+    OL.ref = null; OL.gid = null; OL.players = {};
+    $('lobbyPanel').hidden = true;
+  }
+  function lobbyPlayers() {
+    return Object.entries(OL.players).map(([uid, p]) => ({ uid, name: cleanName(p.name), look: p.look || {}, at: p.at || 0 })).sort((a, b) => a.at - b.at || (a.uid < b.uid ? -1 : 1));
+  }
+  const isHost = () => { const ps = lobbyPlayers(); return !!ps.length && ps[0].uid === OL.uid; };
+  function onRoom(v) {
+    OL.room = v; OL.players = v.players || {};
+    const g = v.game;
+    if (g && g.id !== OL.gid && g.id !== OL.seenGid && Array.isArray(g.order) && g.order.includes(OL.uid)) startOnlineMatch(g);
+    if (g && g.id === OL.gid) { OL.shots = (v.shots && v.shots['g' + g.id]) || {}; onlineTick(); }
+    if (!$('lobbyPanel').hidden) renderLobby();
+  }
+  function showLobby() {
+    ['matchPanel', 'roundPanel', 'orderPanel', 'result'].forEach(id => $(id).hidden = true);
+    C = null; OL.seenGid = OL.gid || OL.seenGid; OL.gid = null; S.actor = null; S.stuck = []; pose = P.shitsu; hideCallout();
+    $('boardCard').hidden = true; $('marksCard').hidden = false;
+    go('lobby'); setStep(-1);
+    $('lobbyPanel').hidden = false; renderLobby();
+  }
+  function renderLobby() {
+    const ps = lobbyPlayers(), host = isHost(), st = OL.room.settings || {};
+    $('lobbyTitle').textContent = '合言葉「' + OL.codeRaw + '」';
+    $('lobbyTable').innerHTML = '<tr><th></th><th>在室（' + ps.length + '人）</th></tr>' + ps.map((p, i) =>
+      '<tr class="' + (p.uid === OL.uid ? 'me' : '') + '"><td class="mk">' + (i === 0 ? '主催' : i < MAX_ROOM ? '' : '見学') + '</td><td>' + p.name + (p.uid === OL.uid ? '（あなた）' : '') + '</td></tr>').join('');
+    $('lobbyHost').hidden = !host;
+    $('lobbyStart').hidden = !host; $('lobbyStart').disabled = ps.length < 2;
+    const what = (st.mode === 'enkin' ? '遠近競射' : '射詰競射') + '・' + (st.mato === 'hoshi' ? '星的' : '霞的');
+    $('lobbyMsg').textContent = host
+      ? (ps.length < 2 ? '相手を待っています。同じ合言葉を伝えて、入ってもらってください。' : '全員そろったら「始める」を押してください。射順はくじで決まります。' + (ps.length > MAX_ROOM ? '6人目からは見学です。' : ''))
+      : '主催の ' + (ps[0] ? ps[0].name : '') + ' さんが始めるのを待っています。（' + what + '）';
+  }
+  function hostSettings() { if (OL.ref && isHost()) OL.ref.child('settings').set({ mode: prefs.olMode || 'izume', mato: prefs.mato }); }
+  document.querySelectorAll('#olModeSeg button').forEach(b => b.addEventListener('click', () => { prefs.olMode = b.dataset.v; save(); renderPrefs(); hostSettings(); }));
+  document.querySelectorAll('#olMatoSeg button').forEach(b => b.addEventListener('click', () => { setMato(b.dataset.v); hostSettings(); }));
+  $('lobbyLeave').addEventListener('click', () => { leaveRoom(); go('intro'); $('intro').hidden = false; $('startBtn').focus(); });
+  $('lobbyStart').addEventListener('click', async () => {
+    const ps = lobbyPlayers().slice(0, MAX_ROOM); if (ps.length < 2 || !isHost()) return;
+    const roster = {}; ps.forEach(p => roster[p.uid] = { name: p.name, look: p.look });
+    $('lobbyStart').disabled = true;
+    await OL.ref.child('shots').set(null);
+    OL.ref.child('game').set({ id: Date.now(), mode: prefs.olMode || 'izume', mato: prefs.mato, order: shuffle(ps.map(p => p.uid)), roster });
+  });
+  function startOnlineMatch(g) {
+    OL.gid = g.id; OL.shots = {}; OL.goneSince = {};
+    ['lobbyPanel', 'matchPanel', 'roundPanel', 'orderPanel', 'result', 'sharePanel'].forEach(id => $(id).hidden = true);
+    hideCallout();
+    const archers = g.order.map((uid, i) => {
+      const p = (g.roster || {})[uid] || {}, lk = p.look || {}, me = uid === OL.uid;
+      return { uid, name: cleanName(p.name), ai: !me, remote: !me, hakama: me ? '#1f2230' : AI_HAKAMA[i % 4],
+        dogi: DOGI.includes(lk.dogi) ? lk.dogi : DOGI[0], fe: FEATHERS[lk.fe] || FEATHERS[0], kake: KAKE.includes(lk.kake) ? lk.kake : KAKE[0],
+        gender: lk.gender === 'f' ? 'f' : 'm', muneate: MUNEATE.includes(lk.muneate) ? lk.muneate : MUNEATE[0] };
+    });
+    setupMatch(archers, g.mode === 'enkin' ? 'enkin' : 'izume', g.mato === 'hoshi' ? 'hoshi' : 'kasumi', 'オンライン対戦・合言葉「' + OL.codeRaw + '」', true);
+  }
+  // 自分の一射を送る。退出扱いで先に「外れ」が書かれていたら、それに合わせる
+  function sendShot(d) {
+    const ref = OL.ref.child('shots/g' + OL.gid + '/r' + C.round + '/' + OL.uid), me = C.cur, rd = C.round - 1;
+    const mine = d.ground ? { ground: true } : { x: d.x, y: d.y, r: d.r, hit: d.hit };
+    ref.transaction(cur => cur || mine).then(res => {
+      const v = res && res.snapshot && res.snapshot.val();
+      if (v && v.left && me.rec[rd]) me.rec[rd] = { hit: false, r: Infinity, small: me.rec[rd].small };
+    }).catch(() => ref.set(mine));
+  }
+  // 相手の番：その人の一射が届いたら、横からの視点で再生する
+  function onlineTick() {
+    if (!C || !C.online || S.phase !== 'online-wait' || !C.cur || !C.cur.remote) return;
+    const a = C.cur, key = 'r' + C.round, s = OL.shots[key] && OL.shots[key][a.uid];
+    if (!s) {
+      if (OL.players[a.uid]) { delete OL.goneSince[a.uid]; return; }
+      // 部屋から消えた。少し待っても戻らなければ「外れ」として書き込む（全員が同じ記録を使う）
+      if (!OL.goneSince[a.uid]) { OL.goneSince[a.uid] = Date.now(); setTimeout(onlineTick, GONE_GRACE + 200); return; }
+      if (Date.now() - OL.goneSince[a.uid] < GONE_GRACE) return;
+      OL.ref.child('shots/g' + OL.gid + '/' + key + '/' + a.uid).transaction(cur => cur || { ground: true, left: true });
+      return;
+    }
+    if (s.left) {
+      a.gone = true;
+      a.rec[C.round - 1] = { hit: false, r: Infinity, small: MR < MATO_R };
+      callout(a.name, '部屋を出たため、外れとして記録します', 'miss', 1800);
+      renderBoard(); C.turn++; nextTurn(); return;
+    }
+    a.gone = false;
+    a.shot = s; S.calloutShown = false;
+    pose = C.firstShot ? P.ashi2 : P.taoshi;
+    S.aiKai = 2 + Math.random() * 1.6; S.frozen = { x: 0, y: 0 };
+    go('ai-prep');
   }
 
   // ================= share card (的 + 結果) =================
   const GAME_URL = 'https://tamago-boro-156.github.io/kyudo/';
+  const oppText = () => C && C.online ? 'オンライン対戦' : '相手の強さ ' + LEVELS[prefs.level].name;
   function plainRec(a) {
     return a.rec.map((r, i) => !r ? '' : (C.stage === 'enkin' || (C.enkinFrom && i + 1 >= C.enkinFrom)) ? (r.hit ? (r.r * 100).toFixed(1) + 'cm ' : '× ') : (r.hit ? (r.small ? '◎' : '○') : '×')).join('').trim();
   }
@@ -921,8 +1118,8 @@ a.btn { text-decoration: none; display: inline-block; }
     if (C && C.archers.some(a => a.rank)) {
       const me = C.archers.find(a => !a.ai), mode = C.mode === 'izume' ? '射詰競射' : '遠近競射';
       const place = me.rank === 1 ? '優勝' : knum(me.rank) + '位';
-      return { big: place, line1: mode + '・' + C.archers.length + '人立ち', line2: '相手の強さ ' + LEVELS[prefs.level].name, line3: '記録 ' + (plainRec(me) || '—'),
-        text: '【一射入魂】' + mode + '（' + C.archers.length + '人立ち・相手の強さ' + LEVELS[prefs.level].name + '）で' + place + (me.rank === 1 ? '！' : '。') + '\n記録 ' + (plainRec(me) || '—') };
+      return { big: place, line1: mode + '・' + C.archers.length + '人立ち', line2: oppText(), line3: '記録 ' + (plainRec(me) || '—'),
+        text: '【一射入魂】' + (C.online ? 'オンライン対戦の' : '') + mode + '（' + C.archers.length + '人立ち' + (C.online ? '' : '・相手の強さ' + LEVELS[prefs.level].name) + '）で' + place + (me.rank === 1 ? '！' : '。') + '\n記録 ' + (plainRec(me) || '—') };
     }
     const n = S.results.filter(Boolean).length, marks = S.results.map(r => r ? '○' : '×').join('');
     const big = n === 4 ? '皆中' : n === 0 ? '残念' : KANJI_NUM[n] + '中';
@@ -1029,16 +1226,18 @@ a.btn { text-decoration: none; display: inline-block; }
   $('modePractice').addEventListener('click', () => { prefs.mode = 'practice'; save(); renderPrefs(); });
   $('modeIzume').addEventListener('click', () => { prefs.mode = 'izume'; save(); renderPrefs(); });
   $('modeEnkin').addEventListener('click', () => { prefs.mode = 'enkin'; save(); renderPrefs(); });
+  $('modeOnline').addEventListener('click', () => { prefs.mode = 'online'; save(); renderPrefs(); });
   document.querySelectorAll('#oppSeg button').forEach(b => b.addEventListener('click', () => { prefs.opp = +b.dataset.v; save(); renderPrefs(); }));
   document.querySelectorAll('#lvSeg button').forEach(b => b.addEventListener('click', () => { prefs.level = b.dataset.v; save(); renderPrefs(); }));
   document.querySelectorAll('#genderSeg button').forEach(b => b.addEventListener('click', () => { prefs.gender = b.dataset.v; S.look = null; save(); renderPrefs(); }));
-  $('startBtn').addEventListener('click', () => { audio(); $('intro').hidden = true; if (prefs.mode === 'practice') startTachi(); else startMatch(); });
+  $('startBtn').addEventListener('click', () => { audio(); if (prefs.mode === 'online') { joinOnline(); return; } $('intro').hidden = true; if (prefs.mode === 'practice') startTachi(); else startMatch(); });
   document.querySelectorAll('.setupBtn').forEach(b => b.addEventListener('click', () => {
+    if (OL.ref) leaveRoom();
     ['result', 'matchPanel'].forEach(id => $(id).hidden = true); C = null; S.look = null; go('intro'); setStep(-1); $('intro').hidden = false; $('startBtn').focus();
   }));
   $('orderBtn').addEventListener('click', () => { $('orderPanel').hidden = true; beginRound(); });
   $('roundBtn').addEventListener('click', () => { $('roundPanel').hidden = true; beginRound(); });
-  $('againBtn').addEventListener('click', () => { $('matchPanel').hidden = true; startMatch(); });
+  $('againBtn').addEventListener('click', () => { $('matchPanel').hidden = true; if (C && C.online) showLobby(); else startMatch(); });
   $('nextBtn').addEventListener('click', startTachi);
   function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
 
@@ -1215,8 +1414,13 @@ a.btn { text-decoration: none; display: inline-block; }
     const s = TPL.s, ox = TPL.ox, oy = TPL.oy;
     const look = S.actor || S.look || { hakama: '#1f2230' };
     drawArcher(ox, oy, s, pose, look.hakama, look.dogi, look.fe, look.kake, look);
+    if (S.phase === 'online-wait' && S.actor) {
+      const msg = S.actor.name + ' さんが射ています' + '・・・'.slice(0, 1 + Math.floor(S.t * 2) % 3);
+      ctx.font = '500 14px ' + FONT; ctx.fillStyle = 'rgba(27,22,18,.78)'; ctx.textAlign = 'center';
+      ctx.fillText(msg, ox - s * 0.05, oy + s * 0.32);
+    }
     if (C && S.actor && S.phase !== 'match-wait') {
-      const tag = S.actor.pos + '　' + S.actor.name + (S.actor.ai ? '（' + LEVELS[prefs.level].name + '）' : '');
+      const tag = S.actor.pos + '　' + S.actor.name + (S.actor.ai && !S.actor.remote ? '（' + LEVELS[prefs.level].name + '）' : '');
       ctx.font = '700 15px ' + DFONT; const tw = ctx.measureText(tag).width;
       const ty = oy - s * 2.15, tx = ox - s * 0.05;
       ctx.fillStyle = S.actor.ai ? 'rgba(27,22,18,.82)' : 'rgba(184,67,47,.92)'; ctx.fillRect(tx - tw / 2 - 10, ty - 18, tw + 20, 26);
@@ -1660,6 +1864,9 @@ a.btn { text-decoration: none; display: inline-block; }
     update(dt); draw();
     requestAnimationFrame(frame);
   }
+  $('olName').value = prefs.olName || ''; $('olCode').value = prefs.olCode || '';
+  addEventListener('pagehide', () => { if (OL.ref) leaveRoom(); });
+  if (window.__FB_MOCK) window.__kyudo = { S, OL, get C() { return C; } };
   renderMarks(); renderStats(); renderPrefs(); setStep(-1);
   requestAnimationFrame(frame);
 })();
