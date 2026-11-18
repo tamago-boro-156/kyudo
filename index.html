@@ -158,6 +158,9 @@ body { background: var(--wood); color: var(--paper); font-family: var(--ui); ove
 .tin { font: inherit; font-size: 16px; padding: 6px 10px; border: 1px solid #b9ad97; background: #fbf8f1; color: var(--ink); min-width: 0; flex: 1; max-width: 14em; border-radius: 0; }
 .tin:focus-visible { outline: 3px solid var(--gold); outline-offset: 1px; }
 .olnote a { color: var(--shu); }
+.waitline { font-weight: 700; color: var(--ink); }
+.waitline::after { content: ''; animation: dots 1.5s steps(4) infinite; }
+@keyframes dots { 0% { content: ''; } 25% { content: '・'; } 50% { content: '・・'; } 75% { content: '・・・'; } }
 .choice.mode { grid-template-columns: 1fr; align-items: start; }
 .pseg { display: flex; flex-wrap: wrap; }
 .pseg button { font-family: var(--ui); font-size: 13px; color: var(--ink); background: transparent; border: 1px solid #b9ad97; padding: 6px 12px; cursor: pointer; }
@@ -349,6 +352,7 @@ a.btn { text-decoration: none; display: inline-block; }
     <h2 id="orderTitle">射詰競射</h2>
     <p id="orderSub"></p>
     <table class="rtable" id="orderTable"></table>
+    <p class="sub waitline" id="orderWait" hidden></p>
     <button class="btn" id="orderBtn">始め</button>
   </div>
 </div>
@@ -359,6 +363,7 @@ a.btn { text-decoration: none; display: inline-block; }
     <h2 id="roundTitle"></h2>
     <p id="roundMsg"></p>
     <table class="rtable" id="roundTable"></table>
+    <p class="sub waitline" id="roundWait" hidden></p>
     <button class="btn" id="roundBtn">次の射へ</button>
   </div>
 </div>
@@ -369,6 +374,7 @@ a.btn { text-decoration: none; display: inline-block; }
     <h2 id="matchTitle"></h2>
     <p class="sub" id="matchSub"></p>
     <table class="rtable" id="matchTable"></table>
+    <p class="sub waitline" id="matchWait" hidden></p>
     <div class="btnrow"><button class="btn" id="againBtn">もう一度</button><a class="btn xbtn" id="matchX" href="https://x.com/intent/post" target="_blank" rel="noopener">𝕏 で結果をシェア</a><button class="btn ghost setupBtn" type="button">種目を選ぶ</button></div>
   </div>
 </div>
@@ -533,8 +539,6 @@ a.btn { text-decoration: none; display: inline-block; }
     $('compFields').hidden = prefs.mode === 'practice' || prefs.mode === 'online';
     $('onlineFields').hidden = prefs.mode !== 'online';
     $('startBtn').textContent = prefs.mode === 'online' ? '入室' : '入場';
-    document.querySelectorAll('#olModeSeg button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === (prefs.olMode || 'izume')));
-    document.querySelectorAll('#olMatoSeg button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === prefs.mato));
     document.querySelectorAll('#oppSeg button').forEach(b => b.setAttribute('aria-pressed', +b.dataset.v === prefs.opp));
     document.querySelectorAll('#lvSeg button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === prefs.level));
     document.querySelectorAll('#genderSeg button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === prefs.gender));
@@ -737,7 +741,9 @@ a.btn { text-decoration: none; display: inline-block; }
     shuffle(archers);
     setupMatch(archers, prefs.mode, prefs.mato, '相手の強さ：' + lv.name, false);
   }
+  function resetGateUI() { ['orderBtn', 'roundBtn', 'againBtn'].forEach(id => $(id).hidden = false); ['orderWait', 'roundWait', 'matchWait'].forEach(id => $(id).hidden = true); }
   function setupMatch(archers, mode, mato, subNote, online) {
+    resetGateUI();
     const pn = posNames(archers.length);
     const me = archers.findIndex(a => !a.ai);
     archers.forEach((a, i) => { a.idx = i; a.pos = pn[i]; a.rec = []; a.alive = true; a.outRound = null; a.enkin = null; a.tx = (me - i) * 2; });
@@ -753,7 +759,7 @@ a.btn { text-decoration: none; display: inline-block; }
       + '　' + subNote;
     $('orderTable').innerHTML = '<tr><th>射順</th><th>射手</th></tr>' + archers.map(a => '<tr class="' + (a.ai ? '' : 'me') + '"><td class="mk">' + a.pos + '</td><td>' + a.name + '</td></tr>').join('');
     S.look = archers.find(a => !a.ai); TPL = null;
-    $('orderPanel').hidden = false; $('orderBtn').focus();
+    openGate('orderPanel');
   }
 
   function beginRound() {
@@ -875,7 +881,7 @@ a.btn { text-decoration: none; display: inline-block; }
     }).join('');
     $('roundBtn').textContent = (C.stage === 'enkin' || C.stage === 'kettei') && C.enkinFrom === C.round + 1 ? (C.stage === 'kettei' ? '順位決定へ' : '遠近競射へ') : '次の射へ';
     pose = P.taoshi; go('match-wait'); setStep(-1);
-    $('roundPanel').hidden = false; $('roundBtn').focus();
+    openGate('roundPanel');
   }
 
   // あなたが抜けたあとの射詰（AI同士）は見せずに結果だけ決める
@@ -925,7 +931,7 @@ a.btn { text-decoration: none; display: inline-block; }
         $('roundTable').innerHTML = '<tr><th>射順</th><th>射手</th></tr>' + C.archers.filter(a => mine.includes(a)).map(a => '<tr class="' + (a.ai ? '' : 'me') + '"><td class="mk">' + a.pos + '</td><td>' + a.name + '</td></tr>').join('');
         $('roundBtn').textContent = '順位決定へ';
         pose = P.taoshi; S.actor = null; go('match-wait'); setStep(-1);
-        $('roundPanel').hidden = false; $('roundBtn').focus();
+        openGate('roundPanel');
         return;
       }
       C.tieResolved = true;
@@ -953,6 +959,7 @@ a.btn { text-decoration: none; display: inline-block; }
     $('matchX').href = 'https://x.com/intent/post?text=' + encodeURIComponent(shareInfo().text + '\n#弓道 #一射入魂') + '&url=' + encodeURIComponent(GAME_URL);
     $('againBtn').textContent = C.online ? '部屋に戻る' : 'もう一度';
     $('matchPanel').hidden = false; $('againBtn').focus();
+    if (C.online) { C.matchAt = Date.now(); matchUI(); }
   }
 
 
@@ -1022,7 +1029,7 @@ a.btn { text-decoration: none; display: inline-block; }
   function leaveRoom() {
     if (!OL.ref) return;
     try { OL.ref.off('value', OL.roomCb); OL.connRef.off('value', OL.connCb); OL.ref.child('players/' + OL.uid).onDisconnect().cancel(); OL.ref.child('players/' + OL.uid).remove(); } catch (e) {}
-    OL.ref = null; OL.gid = null; OL.players = {};
+    OL.ref = null; OL.gid = null; OL.players = {}; resetGateUI();
     $('lobbyPanel').hidden = true;
   }
   function lobbyPlayers() {
@@ -1033,11 +1040,12 @@ a.btn { text-decoration: none; display: inline-block; }
     OL.room = v; OL.players = v.players || {};
     const g = v.game;
     if (g && g.id !== OL.gid && g.id !== OL.seenGid && Array.isArray(g.order) && g.order.includes(OL.uid)) startOnlineMatch(g);
-    if (g && g.id === OL.gid) { OL.shots = (v.shots && v.shots['g' + g.id]) || {}; onlineTick(); }
+    if (g && g.id === OL.gid) { OL.shots = (v.shots && v.shots['g' + g.id]) || {}; OL.gate = g.gate || 0; OL.back = !!g.back; onlineTick(); gateUI(); matchUI(); }
     if (!$('lobbyPanel').hidden) renderLobby();
   }
   function showLobby() {
     ['matchPanel', 'roundPanel', 'orderPanel', 'result'].forEach(id => $(id).hidden = true);
+    clearTimeout(OL.gateT); clearTimeout(OL.backT); resetGateUI();
     C = null; OL.seenGid = OL.gid || OL.seenGid; OL.gid = null; S.actor = null; S.stuck = []; pose = P.shitsu; hideCallout();
     $('boardCard').hidden = true; $('marksCard').hidden = false;
     go('lobby'); setStep(-1);
@@ -1048,16 +1056,54 @@ a.btn { text-decoration: none; display: inline-block; }
     $('lobbyTitle').textContent = '合言葉「' + OL.codeRaw + '」';
     $('lobbyTable').innerHTML = '<tr><th></th><th>在室（' + ps.length + '人）</th></tr>' + ps.map((p, i) =>
       '<tr class="' + (p.uid === OL.uid ? 'me' : '') + '"><td class="mk">' + (i === 0 ? '主催' : i < MAX_ROOM ? '' : '見学') + '</td><td>' + p.name + (p.uid === OL.uid ? '（あなた）' : '') + '</td></tr>').join('');
-    $('lobbyHost').hidden = !host;
+    // 主催は選べる。ほかの人には主催の選択がそのまま映る（押せない）
+    const mode = host ? (prefs.olMode || 'izume') : (st.mode || 'izume'), mato = host ? prefs.mato : (st.mato || 'kasumi');
+    document.querySelectorAll('#olModeSeg button').forEach(b => { b.setAttribute('aria-pressed', b.dataset.v === mode); b.disabled = !host; });
+    document.querySelectorAll('#olMatoSeg button').forEach(b => { b.setAttribute('aria-pressed', b.dataset.v === mato); b.disabled = !host; });
     $('lobbyStart').hidden = !host; $('lobbyStart').disabled = ps.length < 2;
-    const what = (st.mode === 'enkin' ? '遠近競射' : '射詰競射') + '・' + (st.mato === 'hoshi' ? '星的' : '霞的');
+    $('lobbyMsg').classList.toggle('waitline', !host);
     $('lobbyMsg').textContent = host
-      ? (ps.length < 2 ? '相手を待っています。同じ合言葉を伝えて、入ってもらってください。' : '全員そろったら「始める」を押してください。射順はくじで決まります。' + (ps.length > MAX_ROOM ? '6人目からは見学です。' : ''))
-      : '主催の ' + (ps[0] ? ps[0].name : '') + ' さんが始めるのを待っています。（' + what + '）';
+      ? (ps.length < 2 ? '相手を待っています。同じ合言葉を伝えて、入ってもらってください。' : '種目と的を選び、全員そろったら「始める」を押してください。射順はくじで決まります。' + (ps.length > MAX_ROOM ? '6人目からは見学です。' : ''))
+      : '主催の ' + hostName() + ' さんが設定中です';
+  }
+  const hostName = () => { const ps = lobbyPlayers(); return ps[0] ? ps[0].name : ''; };
+  // 主催が「始め」「次の射へ」を押すと、全員の画面が進む（game/gate = 通ってよい関門の番号）
+  function openGate(id) {
+    $(id).hidden = false;
+    if (!C.online) { $(id === 'orderPanel' ? 'orderBtn' : 'roundBtn').focus(); return; }
+    C.gate = (C.gate || 0) + 1; C.gateId = id; C.gateAt = Date.now();
+    gateUI();
+  }
+  function gateUI() {
+    if (!C || !C.online || !C.gateId || $(C.gateId).hidden) return;
+    const order = C.gateId === 'orderPanel', btn = $(order ? 'orderBtn' : 'roundBtn'), wait = $(order ? 'orderWait' : 'roundWait'), host = isHost();
+    btn.hidden = !host; wait.hidden = host;
+    if (host) { if (document.activeElement !== btn) btn.focus(); return; }
+    wait.textContent = '主催の ' + hostName() + ' さんが進めるのを待っています';
+    if ((OL.gate || 0) >= C.gate) {
+      const n = C.gate; clearTimeout(OL.gateT);
+      OL.gateT = setTimeout(() => { if (C && C.online && C.gate === n && C.gateId && !$(C.gateId).hidden) { $(C.gateId).hidden = true; C.gateId = null; beginRound(); } }, Math.max(0, 2500 - (Date.now() - C.gateAt)));
+    }
+  }
+  function hostPass() {
+    if (!C || !C.online || !C.gateId) return;
+    OL.ref.child('game/gate').transaction(cur => Math.max(cur || 0, C.gate));
+    C.gateId = null;
+  }
+  // 試合後は、主催が「部屋に戻る」を押すと全員が部屋に戻る
+  function matchUI() {
+    if (!C || !C.online || $('matchPanel').hidden) return;
+    const host = isHost();
+    $('againBtn').hidden = !host; $('againBtn').textContent = '全員で部屋に戻る';
+    $('matchWait').hidden = host; $('matchWait').textContent = '主催の ' + hostName() + ' さんが次の対戦を準備しています';
+    if (!host && OL.back) {
+      clearTimeout(OL.backT);
+      OL.backT = setTimeout(() => { if (C && C.online && !$('matchPanel').hidden) showLobby(); }, Math.max(0, 5000 - (Date.now() - C.matchAt)));
+    }
   }
   function hostSettings() { if (OL.ref && isHost()) OL.ref.child('settings').set({ mode: prefs.olMode || 'izume', mato: prefs.mato }); }
-  document.querySelectorAll('#olModeSeg button').forEach(b => b.addEventListener('click', () => { prefs.olMode = b.dataset.v; save(); renderPrefs(); hostSettings(); }));
-  document.querySelectorAll('#olMatoSeg button').forEach(b => b.addEventListener('click', () => { setMato(b.dataset.v); hostSettings(); }));
+  document.querySelectorAll('#olModeSeg button').forEach(b => b.addEventListener('click', () => { prefs.olMode = b.dataset.v; save(); renderPrefs(); hostSettings(); renderLobby(); }));
+  document.querySelectorAll('#olMatoSeg button').forEach(b => b.addEventListener('click', () => { setMato(b.dataset.v); hostSettings(); renderLobby(); }));
   $('lobbyLeave').addEventListener('click', () => { leaveRoom(); go('intro'); $('intro').hidden = false; $('startBtn').focus(); });
   $('lobbyStart').addEventListener('click', async () => {
     const ps = lobbyPlayers().slice(0, MAX_ROOM); if (ps.length < 2 || !isHost()) return;
@@ -1067,7 +1113,7 @@ a.btn { text-decoration: none; display: inline-block; }
     OL.ref.child('game').set({ id: Date.now(), mode: prefs.olMode || 'izume', mato: prefs.mato, order: shuffle(ps.map(p => p.uid)), roster });
   });
   function startOnlineMatch(g) {
-    OL.gid = g.id; OL.shots = {}; OL.goneSince = {};
+    OL.gid = g.id; OL.shots = {}; OL.goneSince = {}; OL.gate = 0; OL.back = false;
     ['lobbyPanel', 'matchPanel', 'roundPanel', 'orderPanel', 'result', 'sharePanel'].forEach(id => $(id).hidden = true);
     hideCallout();
     const archers = g.order.map((uid, i) => {
@@ -1239,9 +1285,12 @@ a.btn { text-decoration: none; display: inline-block; }
     if (OL.ref) leaveRoom();
     ['result', 'matchPanel'].forEach(id => $(id).hidden = true); C = null; S.look = null; go('intro'); setStep(-1); $('intro').hidden = false; $('startBtn').focus();
   }));
-  $('orderBtn').addEventListener('click', () => { $('orderPanel').hidden = true; beginRound(); });
-  $('roundBtn').addEventListener('click', () => { $('roundPanel').hidden = true; beginRound(); });
-  $('againBtn').addEventListener('click', () => { $('matchPanel').hidden = true; if (C && C.online) showLobby(); else startMatch(); });
+  $('orderBtn').addEventListener('click', () => { hostPass(); $('orderPanel').hidden = true; beginRound(); });
+  $('roundBtn').addEventListener('click', () => { hostPass(); $('roundPanel').hidden = true; beginRound(); });
+  $('againBtn').addEventListener('click', () => {
+    $('matchPanel').hidden = true;
+    if (C && C.online) { if (isHost()) OL.ref.child('game/back').set(true); showLobby(); } else startMatch();
+  });
   $('nextBtn').addEventListener('click', startTachi);
   function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
 
