@@ -451,9 +451,9 @@ a.btn { text-decoration: none; display: inline-block; }
   // ================= persistence =================
   let stats = { total: 0, hits: 0, kaichu: 0 };
   let prefs = { mato: 'kasumi', guide: false, fast: false, mode: 'practice', opp: 2, level: 'normal', gender: 'm' };
-  try { const s = JSON.parse(localStorage.getItem('kyudo-stats') || 'null'); if (s) stats = Object.assign(stats, s); } catch (e) {}
-  try { const p = JSON.parse(localStorage.getItem('kyudo-prefs') || 'null'); if (p) prefs = Object.assign(prefs, p); } catch (e) {}
-  const save = () => { try { localStorage.setItem('kyudo-stats', JSON.stringify(stats)); localStorage.setItem('kyudo-prefs', JSON.stringify(prefs)); } catch (e) {} };
+  // 開き直すたびに成績も設定もまっさらから。以前の版が残した保存データも消しておく
+  try { localStorage.removeItem('kyudo-stats'); localStorage.removeItem('kyudo-prefs'); } catch (e) {}
+  const save = () => {};
 
   // ================= state =================
   const S = {
@@ -989,8 +989,11 @@ a.btn { text-decoration: none; display: inline-block; }
     if (OL.db) return;
     if (!window.firebase) await withStage('読み込み', (async () => { for (const m of ['app', 'auth', 'database']) await loadScript('https://www.gstatic.com/firebasejs/' + FB_VER + '/firebase-' + m + '-compat.js'); })(), 15000);
     if (!firebase.apps.length) firebase.initializeApp(FB_CONFIG);
+    // ログイン状態を保存しない：開き直すたびに新しい射手として入る
+    try { await firebase.auth().setPersistence(firebase.auth.Auth.Persistence.NONE); } catch (e) {}
     const cred = await withStage('ログイン', firebase.auth().signInAnonymously(), 15000);
     OL.uid = cred.user.uid; OL.db = firebase.database();
+    OL.skew = await new Promise(r => { OL.db.ref('.info/serverTimeOffset').once('value', x => r(+x.val() || 0)); setTimeout(() => r(0), 3000); });
   }
   function olNote(html) { $('olNote').innerHTML = html; }
   async function joinOnline() {
@@ -1003,18 +1006,20 @@ a.btn { text-decoration: none; display: inline-block; }
       await fbInit();
       const ref = OL.db.ref('rooms/' + code);
       const v = (await withStage('データベース', ref.get(), 12000)).val() || {};
-      const ps = v.players || {};
-      if (!Object.keys(ps).length) await ref.set(null);               // 誰もいない古い部屋は片付けて使う
-      else if (!ps[OL.uid] && Object.keys(ps).length >= MAX_ROOM + 3) { olNote('この部屋は満員です。別の合言葉にしてください。'); $('startBtn').disabled = false; return; }
+      const ps = {};
+      Object.entries(v.players || {}).forEach(([k, p]) => { if (fresh(p)) ps[k] = p; });   // 接続が切れて残っているだけの人は数えない
+      if (!Object.keys(ps).length) await ref.set(null);               // 生きている人がいない部屋は、まっさらにして使う
+      else if (Object.keys(ps).length >= MAX_ROOM + 3) { olNote('この部屋は満員です。別の合言葉にしてください。'); $('startBtn').disabled = false; return; }
       OL.ref = ref; OL.code = code; OL.codeRaw = raw; OL.name = name;
-      OL.seenGid = v.game ? v.game.id : null; OL.gid = null;
+      OL.seenGid = Object.keys(ps).length && v.game ? v.game.id : null; OL.gid = null;
       const f = randFeather();
       OL.me = { name, look: { dogi: randDogi(), fe: FEATHERS.indexOf(f), kake: randKake(), gender: prefs.gender, muneate: randMuneate() } };
       // 接続が切れたら在室から消える。つながり直したら入り直す
       OL.connRef = OL.db.ref('.info/connected');
-      OL.connCb = s => { if (s.val() && OL.ref) { const me = OL.ref.child('players/' + OL.uid); me.onDisconnect().remove(); me.set({ name: OL.me.name, look: OL.me.look, at: OL.joinedAt || (OL.joinedAt = Date.now()) }); } };
-      OL.joinedAt = Date.now();
+      OL.joinedAt = olNow();
+      OL.connCb = s => { if (s.val() && OL.ref) { OL.ref.child('players/' + OL.uid).onDisconnect().remove(); beat(); } };
       OL.connRef.on('value', OL.connCb);
+      clearInterval(OL.beatT); OL.beatT = setInterval(beat, 15000);
       if (!Object.keys(ps).length) ref.child('settings').set({ mode: prefs.olMode || 'izume', mato: prefs.mato });
       ref.on('value', OL.roomCb = s => onRoom(s.val() || {}));
       $('intro').hidden = true; showLobby();
@@ -1028,12 +1033,18 @@ a.btn { text-decoration: none; display: inline-block; }
   }
   function leaveRoom() {
     if (!OL.ref) return;
+    clearInterval(OL.beatT);
     try { OL.ref.off('value', OL.roomCb); OL.connRef.off('value', OL.connCb); OL.ref.child('players/' + OL.uid).onDisconnect().cancel(); OL.ref.child('players/' + OL.uid).remove(); } catch (e) {}
     OL.ref = null; OL.gid = null; OL.players = {}; resetGateUI();
     $('lobbyPanel').hidden = true;
   }
+  // 在室の合図：15秒ごとに時刻を書き込む。90秒途絶えた人は在室に数えない
+  const olNow = () => Date.now() + (OL.skew || 0);
+  const fresh = p => p && olNow() - (p.seen || p.at || 0) < 90000;
+  function beat() { if (OL.ref && OL.me) OL.ref.child('players/' + OL.uid).set({ name: OL.me.name, look: OL.me.look, at: OL.joinedAt, seen: olNow() }); }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) beat(); });
   function lobbyPlayers() {
-    return Object.entries(OL.players).map(([uid, p]) => ({ uid, name: cleanName(p.name), look: p.look || {}, at: p.at || 0 })).sort((a, b) => a.at - b.at || (a.uid < b.uid ? -1 : 1));
+    return Object.entries(OL.players).filter(([, p]) => fresh(p)).map(([uid, p]) => ({ uid, name: cleanName(p.name), look: p.look || {}, at: p.at || 0 })).sort((a, b) => a.at - b.at || (a.uid < b.uid ? -1 : 1));
   }
   const isHost = () => { const ps = lobbyPlayers(); return !!ps.length && ps[0].uid === OL.uid; };
   function onRoom(v) {
@@ -1917,7 +1928,6 @@ a.btn { text-decoration: none; display: inline-block; }
     update(dt); draw();
     requestAnimationFrame(frame);
   }
-  $('olName').value = prefs.olName || ''; $('olCode').value = prefs.olCode || '';
   addEventListener('pagehide', () => { if (OL.ref) leaveRoom(); });
   if (window.__FB_MOCK) window.__kyudo = { S, OL, get C() { return C; } };
   renderMarks(); renderStats(); renderPrefs(); setStep(-1);
