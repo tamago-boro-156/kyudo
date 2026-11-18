@@ -526,6 +526,7 @@ a.btn { text-decoration: none; display: inline-block; }
     $('sKai').textContent = stats.kaichu;
   }
   function renderPrefs() {
+    $('hassetsu').hidden = !!C;   // 射法八節の案内は稽古だけ。競射・オンラインでは出さない
     const k = prefs.mato === 'kasumi';
     $('pickKasumi').setAttribute('aria-pressed', k); $('pickHoshi').setAttribute('aria-pressed', !k);
     $('hudKasumi').setAttribute('aria-pressed', k); $('hudHoshi').setAttribute('aria-pressed', !k);
@@ -1532,10 +1533,13 @@ a.btn { text-decoration: none; display: inline-block; }
     const s = TPL.s, ox = TPL.ox, oy = TPL.oy;
     const look = S.actor || S.look || { hakama: '#1f2230' };
     drawArcher(ox, oy, s, pose, look.hakama, look.dogi, look.fe, look.kake, look);
-    if (S.phase === 'online-wait' && S.actor) {
-      const msg = S.actor.name + ' さんが射ています' + '・・・'.slice(0, 1 + Math.floor(S.t * 2) % 3);
-      ctx.font = '500 14px ' + FONT; ctx.fillStyle = 'rgba(27,22,18,.78)'; ctx.textAlign = 'center';
-      ctx.fillText(msg, ox - s * 0.05, oy + s * 0.32);
+    // 競射・オンラインで自分以外が射ているあいだは「○○さんが行射中…」
+    if (C && S.actor && S.actor.ai && (S.phase === 'online-wait' || S.phase === 'ol-live' || S.phase.startsWith('ai-'))) {
+      const base = S.actor.name + ' さんが行射中', dots = '・・・'.slice(0, 1 + Math.floor(S.t * 2) % 3);
+      ctx.font = '700 15px ' + DFONT; ctx.textAlign = 'left';
+      const tw = ctx.measureText(base + '・・・').width, bx = ox - s * 0.05 - tw / 2, by = oy - s * 2.15 - 40;   // 名札のすぐ上
+      ctx.fillStyle = 'rgba(27,22,18,.82)'; ctx.fillRect(bx - 14, by - 19, tw + 28, 28);
+      ctx.fillStyle = '#f3eee2'; ctx.fillText(base + dots, bx, by);
     }
     if (C && S.actor && S.phase !== 'match-wait') {
       const tag = S.actor.pos + '　' + S.actor.name + (S.actor.ai && !S.actor.remote ? '（' + LEVELS[prefs.level].name + '）' : '');
