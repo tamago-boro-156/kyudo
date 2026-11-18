@@ -975,11 +975,14 @@ a.btn { text-decoration: none; display: inline-block; }
   const cleanName = s => String(s || '').replace(/[<>&"'`\\]/g, '').trim().slice(0, 8) || '射手';
   const roomKey = s => String(s || '').trim().replace(/[.#$\[\]\/\s]/g, '').slice(0, 16);
   function loadScript(src) { return new Promise((res, rej) => { const e = document.createElement('script'); e.src = src; e.onload = res; e.onerror = rej; document.head.appendChild(e); }); }
+  // どの段階で失敗したかを画面に出す（設定の不備を見つけやすくする）
+  const withStage = (stage, pr, ms) => Promise.race([pr, new Promise((_, rej) => setTimeout(() => rej({ code: 'timeout', message: ms / 1000 + '秒たっても応答がありません' }), ms))])
+    .catch(e => { throw { stage, code: (e && e.code) || '', message: (e && e.message) || String(e) }; });
   async function fbInit() {
     if (OL.db) return;
-    if (!window.firebase) for (const m of ['app', 'auth', 'database']) await loadScript('https://www.gstatic.com/firebasejs/' + FB_VER + '/firebase-' + m + '-compat.js');
+    if (!window.firebase) await withStage('読み込み', (async () => { for (const m of ['app', 'auth', 'database']) await loadScript('https://www.gstatic.com/firebasejs/' + FB_VER + '/firebase-' + m + '-compat.js'); })(), 15000);
     if (!firebase.apps.length) firebase.initializeApp(FB_CONFIG);
-    const cred = await firebase.auth().signInAnonymously();
+    const cred = await withStage('ログイン', firebase.auth().signInAnonymously(), 15000);
     OL.uid = cred.user.uid; OL.db = firebase.database();
   }
   function olNote(html) { $('olNote').innerHTML = html; }
@@ -992,7 +995,7 @@ a.btn { text-decoration: none; display: inline-block; }
     try {
       await fbInit();
       const ref = OL.db.ref('rooms/' + code);
-      const v = (await ref.get()).val() || {};
+      const v = (await withStage('データベース', ref.get(), 12000)).val() || {};
       const ps = v.players || {};
       if (!Object.keys(ps).length) await ref.set(null);               // 誰もいない古い部屋は片付けて使う
       else if (!ps[OL.uid] && Object.keys(ps).length >= MAX_ROOM + 3) { olNote('この部屋は満員です。別の合言葉にしてください。'); $('startBtn').disabled = false; return; }
@@ -1011,7 +1014,8 @@ a.btn { text-decoration: none; display: inline-block; }
       olNote('同じ合言葉を入れた人どうしが、同じ部屋に入ります（最大5人）。最初に入った人が主催になり、種目と的を決めます。');
     } catch (e) {
       console.warn(e);
-      olNote('接続できませんでした。通信の状態を確かめて、もう一度お試しください。');
+      const esc = t => String(t || '').replace(/[<>&]/g, '');
+      olNote('接続できませんでした（' + esc(e.stage || '不明') + 'の段階）。<br><small>' + esc(e.code) + ' ' + esc(e.message).slice(0, 200) + '</small>');
     }
     $('startBtn').disabled = false;
   }
