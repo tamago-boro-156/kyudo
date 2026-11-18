@@ -346,7 +346,7 @@ a.btn { text-decoration: none; display: inline-block; }
     <h2 id="matchTitle"></h2>
     <p class="sub" id="matchSub"></p>
     <table class="rtable" id="matchTable"></table>
-    <div class="btnrow"><button class="btn" id="againBtn">もう一度</button><button class="btn xbtn shareBtn" type="button">𝕏 で結果をシェア</button><button class="btn ghost setupBtn" type="button">種目を選ぶ</button></div>
+    <div class="btnrow"><button class="btn" id="againBtn">もう一度</button><a class="btn xbtn" id="matchX" href="https://x.com/intent/post" target="_blank" rel="noopener">𝕏 で結果をシェア</a><button class="btn ghost setupBtn" type="button">種目を選ぶ</button></div>
   </div>
 </div>
 
@@ -907,6 +907,8 @@ a.btn { text-decoration: none; display: inline-block; }
       '<tr class="' + (a.ai ? '' : 'me') + '"><td class="rank">' + knum(a.rank) + '</td><td class="mk">' + a.pos + '</td><td>' + a.name + '</td><td class="mk">' + (recText(a) || '—') + (a.ketteiSim ? ' <small>（順位決定は省略）</small>' : '') + '</td></tr>').join('');
     renderBoard();
     pose = P.taoshi; S.actor = null; go('match-wait'); setStep(-1);
+    // 競技は結果だけを文でシェア（的の画像はなし）
+    $('matchX').href = 'https://x.com/intent/post?text=' + encodeURIComponent(shareInfo().text + '\n#弓道 #一射入魂') + '&url=' + encodeURIComponent(GAME_URL);
     $('matchPanel').hidden = false; $('againBtn').focus();
   }
 
